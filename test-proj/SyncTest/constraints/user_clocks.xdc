@@ -26,17 +26,12 @@
 
 set delay_ratio 1
 
-# portal clk
+# portal clk (fast clock)
 set portal_clk [get_clocks -of_objects [get_pins host_pcieHostTop_ep7/clkgen_pll/CLKOUT1]]
-# derived clk (fast clk)
-set derived_clk [get_clocks -of_objects [get_pins host_pcieHostTop_ep7/clkgen_pll/CLKOUT0]]
 # user clk (slow clk)
 set user_clk [get_clocks -of_objects [get_pins -hier -filter {NAME =~ *userClkGenerator_pll/CLKOUT0}]]
 
 # relations between clocks
 set_max_delay -from [get_clocks $user_clk] -to [get_clocks $portal_clk] -datapath_only [expr $delay_ratio * [get_property PERIOD [get_clocks $portal_clk]]]
 set_max_delay -from [get_clocks $portal_clk] -to [get_clocks $user_clk] -datapath_only [expr $delay_ratio * [get_property PERIOD [get_clocks $user_clk]]]
-
-set_max_delay -from [get_clocks $user_clk] -to [get_clocks $derived_clk] -datapath_only [expr $delay_ratio * [get_property PERIOD [get_clocks $derived_clk]]]
-set_max_delay -from [get_clocks $derived_clk] -to [get_clocks $user_clk] -datapath_only [expr $delay_ratio * [get_property PERIOD [get_clocks $user_clk]]]
 

@@ -49,17 +49,12 @@ module mkSyncTestWrapper#(HostInterface host, SyncTestIndication indication)(Syn
     UserClkRst userClkRst <- mkUserClkRst(`USER_CLK_PERIOD);
     Clock userClk = userClkRst.clk;
     Reset userRst = userClkRst.rst;
-
-    Clock fastClk = host.derivedClock;
-    Reset fastRst = host.derivedReset;
 `else
     Clock userClk = portalClk;
     Reset userRst = portalRst;
-    Clock fastClk = portalClk;
-    Reset fastRst = portalRst;
 `endif
 
-    SyncTest test <- mkSyncTest(portalClk, portalRst, fastClk, fastRst, clocked_by userClk, reset_by userRst);
+    SyncTest test <- mkSyncTest(portalClk, portalRst, clocked_by userClk, reset_by userRst);
 
     rule doDone;
         let r <- test.done;

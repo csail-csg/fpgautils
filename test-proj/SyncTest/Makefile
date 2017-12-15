@@ -24,17 +24,14 @@
 CONNECTALDIR = $(RISCY_HOME)/connectal
 
 LOG_MAX_FIFO_SZ ?= 10
-FAST_CLK_PERIOD = 5
-USER_CLK_PERIOD = 10
-# sync fifo type can be: normal, bsv, connectal, xilinx
-SYNC_FIFO_TYPE ?= xilinx
+USER_CLK_PERIOD = 40
 
 PROJ_DIR = $(CURDIR)
 XILINX_IP_DIR = $(PROJ_DIR)/../../xilinx
 SYNC_LIB_DIR = $(PROJ_DIR)/../../lib
 CORE_SCRIPT_DIR = $(PROJ_DIR)/../../core-scripts
 
-BUILD_DIR = $(PROJ_DIR)/build/user_$(USER_CLK_PERIOD).sync_$(SYNC_FIFO_TYPE)
+BUILD_DIR = $(PROJ_DIR)/build/user_$(USER_CLK_PERIOD)ns
 PROJECTDIR = $(BUILD_DIR)/$(BOARD)
 
 S2H_INTERFACES = SyncTestRequest:SyncTestWrapper.request
@@ -47,32 +44,24 @@ CPPFILES = $(PROJ_DIR)/cpp/main.cpp
 CONNECTALFLAGS += -D IMPORT_HOSTIF --nocache \
 				  --bsvpath $(PROJ_DIR)/bsv --bsvpath $(SYNC_LIB_DIR) \
 				  --verilog $(XILINX_IP_DIR)/reset_regs \
-				  --derivedclockperiod=$(FAST_CLK_PERIOD) \
 				  --bscflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
 				  --bscflags " -D LOG_MAX_FIFO_SZ=$(LOG_MAX_FIFO_SZ) " \
 				  --cflags " -std=c++0x " \
-				  --cflags " -DSLOW_CLK_PERIOD=$(USER_CLK_PERIOD) -DFAST_CLK_PERIOD=$(FAST_CLK_PERIOD) " \
+				  --cflags " -DUSER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
 				  --cflags " -DLOG_MAX_FIFO_SZ=$(LOG_MAX_FIFO_SZ) "
 
-ifeq ($(SYNC_FIFO_TYPE),bsv)
-CONNECTALFLAGS += --bscflags " -D USE_BSV_BRAM_SYNC_FIFO "
-endif
-ifeq ($(SYNC_FIFO_TYPE),connectal)
-CONNECTALFLAGS += --bscflags " -D USE_CONNECTAL_BRAM_SYNC_FIFO "
-endif
-ifeq ($(SYNC_FIFO_TYPE),xilinx)
+# Use Xilinx Sync FIFO
 CONNECTALFLAGS += --bscflags " -D USE_XILINX_SYNC_FIFO "
-endif
+#CONNECTALFLAGS += --bscflags " -D USE_BSV_BRAM_SYNC_FIFO "
+#CONNECTALFLAGS += --bscflags " -D USE_CONNECTAL_BRAM_SYNC_FIFO "
 
-ifeq ($(BOARD),vc707)
-# synthesize for VC707
+ifeq ($(BOARD),$(filter $(BOARD),vc707 awsf1))
+# synthesize for VC707 or AWS F1
 
 SYNC_FIFO_XCI = $(CONNECTALDIR)/out/$(BOARD)/sync_fifo_w32_d16/sync_fifo_w32_d16.xci
 SYNC_BRAM_FIFO_XCI = $(CONNECTALDIR)/out/$(BOARD)/sync_bram_fifo_w36_d512/sync_bram_fifo_w36_d512.xci
 
-CONNECTALFLAGS += -C $(XILINX_IP_DIR)/vc707/constraints/clocks.xdc \
-				  -C $(PROJ_DIR)/constraints/user_clocks.xdc \
-				  --xci $(SYNC_FIFO_XCI) \
+CONNECTALFLAGS += --xci $(SYNC_FIFO_XCI) \
 				  --xci $(SYNC_BRAM_FIFO_XCI)
 
 prebuild:: $(SYNC_FIFO_XCI) $(SYNC_BRAM_FIFO_XCI)
@@ -82,6 +71,11 @@ $(SYNC_FIFO_XCI): $(CORE_SCRIPT_DIR)/synth_sync_fifo.tcl
 
 $(SYNC_BRAM_FIFO_XCI): $(CORE_SCRIPT_DIR)/synth_sync_bram_fifo.tcl
 	(cd $(PROJECTDIR); vivado -mode batch -source $^)
+
+# VC707 needs some more clocking constraints
+ifeq ($(BOARD),vc707)
+CONNECTALFLAGS += -C $(XILINX_IP_DIR)/vc707/constraints/clocks.xdc
+endif
 
 else
 # simulation

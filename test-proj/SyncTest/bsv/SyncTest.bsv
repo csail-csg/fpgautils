@@ -50,11 +50,13 @@ endinterface
 typedef struct {
     Bit#(64) testNum;
     TestMode mode;
-    Bit#(8) fastDelay;
 } StartReq deriving(Bits, Eq);
 
+// portal clock is fast clock, current/user clock is slow clock
+// methods of this module are clocked by portal clock
+
 (* synthesize *)
-module mkSyncTest#(Clock portalClk, Reset portalRst, Clock fastClk, Reset fastRst)(SyncTest);
+module mkSyncTest#(Clock portalClk, Reset portalRst)(SyncTest);
     Clock curClk <- exposeCurrentClock;
     Reset curRst <- exposeCurrentReset;
 
@@ -64,46 +66,23 @@ module mkSyncTest#(Clock portalClk, Reset portalRst, Clock fastClk, Reset fastRs
     SyncFIFOIfc#(DoneResp) doneQ <- mkSyncFifo(1, curClk, curRst, portalClk, portalRst);
     SyncFIFOIfc#(ErrResp) errQ <- mkSyncFifo(1, curClk, curRst, portalClk, portalRst);
 
-    // delay cycles in fast clock domain
-    Reg#(Bit#(8)) fastDelayCycles <- mkReg(0, clocked_by fastClk, reset_by fastRst); // prevent some reset issue?
-    // transfer the delay param to fast clock domain
-    SyncFIFOIfc#(Bit#(8)) setDelayQ <- mkSyncFifo(1, curClk, curRst, fastClk, fastRst);
-    // after seting the delay, we get start
-    SyncFIFOIfc#(Bool) initQ <- mkSyncFifo(1, fastClk, fastRst, curClk, curRst);
-
-    // test setting params (at main clock domain)
-    Reg#(Bit#(64)) testNum <- mkReg(0); // 0 is invalid test num
-    Reg#(TestMode) mode <- mkRegU;
+    // delay cycles in fast/portal clock domain
+    Reg#(Bit#(8)) fastDelayCycles <- mkReg(0, clocked_by portalClk, reset_by portalRst); // prevent some reset issue?
 
     // test modules
     Vector#(TAdd#(LogMaxFifoSz, 1), SyncTestSingle) tests = ?;
     for(Integer i = 0; i <= valueOf(LogMaxFifoSz); i = i+1) begin
-        tests[i] <- mkSyncTestSingle(fastClk, fastRst, fastDelayCycles, 2 ** i);
+        tests[i] <- mkSyncTestSingle(portalClk, portalRst, fastDelayCycles, 2 ** i);
     end
 
     // start up initialization
     rule getStartReq;
         startQ.deq;
         StartReq r = startQ.first;
-        testNum <= r.testNum; // this should > 0 to truly start test
-        mode <= r.mode;
-        setDelayQ.enq(r.fastDelay);
-        $display("%t SyncTest %m: get start req %d %d %d", $time, r.testNum, r.mode, r.fastDelay);
-    endrule
-
-    rule doSetDelay;
-        setDelayQ.deq;
-        fastDelayCycles <= setDelayQ.first;
-        initQ.enq(?);
-        $display("%t SyncTest %m: set delay %d", $time, setDelayQ.first);
-    endrule
-
-    rule doStartTests(testNum > 0); // start test when testNum is set & delay is set
-        initQ.deq;
         for(Integer i = 0; i <= valueOf(LogMaxFifoSz); i = i+1) begin
-            tests[i].start(testNum, mode);
+            tests[i].start(r.testNum, r.mode);
         end
-        $display("%t SyncTest %m: init %d %d", $time, testNum, mode);
+        $display("%t SyncTest %m: get start req %d %d", $time, r.testNum, r.mode);
     endrule
 
     // indications
@@ -128,9 +107,10 @@ module mkSyncTest#(Clock portalClk, Reset portalRst, Clock fastClk, Reset fastRs
     method Action start(Bit#(64) num, TestMode m, Bit#(8) delay);
         startQ.enq(StartReq {
             testNum: num,
-            mode: m,
-            fastDelay: delay
+            mode: m
         });
+        fastDelayCycles <= delay;
+        $display("%t SyncTest %m: set delay %d", $time, delay);
     endmethod
 
     method ActionValue#(DoneResp) done;

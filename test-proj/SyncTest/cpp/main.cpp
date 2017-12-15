@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
     testReq = new SyncTestRequestProxy(IfcNames_SyncTestRequestS2H);
 
     fprintf(stderr, "INFO: start: slow clk %d ns, fast clk %d ns, mode %s, num %llu, delay %d\n",
-            SLOW_CLK_PERIOD, FAST_CLK_PERIOD, argv[2], test_num, fast_delay);
+            USER_CLK_PERIOD, MainClockPeriod, argv[2], test_num, fast_delay);
     testReq->start(test_num, mode, fast_delay);
     testInd->waitDone();
 
