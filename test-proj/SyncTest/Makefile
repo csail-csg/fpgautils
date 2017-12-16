@@ -41,7 +41,7 @@ BSVFILES = $(PROJ_DIR)/bsv/SyncTestIF.bsv
 
 CPPFILES = $(PROJ_DIR)/cpp/main.cpp 
 
-CONNECTALFLAGS += -D IMPORT_HOSTIF --nocache \
+CONNECTALFLAGS += -D IMPORT_HOSTIF --nocache -v \
 				  --bsvpath $(PROJ_DIR)/bsv --bsvpath $(SYNC_LIB_DIR) \
 				  --verilog $(XILINX_IP_DIR)/reset_regs \
 				  --bscflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
@@ -71,6 +71,11 @@ $(SYNC_FIFO_XCI): $(CORE_SCRIPT_DIR)/synth_sync_fifo.tcl
 
 $(SYNC_BRAM_FIFO_XCI): $(CORE_SCRIPT_DIR)/synth_sync_bram_fifo.tcl
 	(cd $(PROJECTDIR); vivado -mode batch -source $^)
+
+# AWS needs to know sync fifo is used
+ifeq ($(BOARD),awsf1)
+CONNECTALFLAGS += -D AWSF1_SYNC_FIFO
+endif
 
 # VC707 needs some more clocking constraints
 ifeq ($(BOARD),vc707)
