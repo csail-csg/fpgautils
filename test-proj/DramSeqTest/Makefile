@@ -23,15 +23,23 @@
 
 CONNECTALDIR = $(RISCY_HOME)/connectal
 
-USER_CLK_PERIOD ?= 10
+USER_CLK_PERIOD ?= 40
+# DRAM type to test VC707 or AWSF1
+DRAM_TYPE ?= VC707
+ifeq ($(BOARD),vc707)
+DRAM_TYPE := VC707
+endif
+ifeq ($(BOARD),awsf1)
+DRAM_TYPE := AWSF1
+endif
 
 PROJ_DIR = $(CURDIR)
-DDR3_LIB_DIR = $(PROJ_DIR)/../../lib
+FPGA_LIB_DIR = $(PROJ_DIR)/../../lib
 XILINX_IP_DIR = $(PROJ_DIR)/../../xilinx
 CORE_SCRIPT_DIR = $(PROJ_DIR)/../../core-scripts
 
 BUILD_DIR = $(PROJ_DIR)/build
-PROJECTDIR = $(BUILD_DIR)/$(BOARD)
+PROJECTDIR = $(BUILD_DIR)/$(BOARD).$(DRAM_TYPE)
 
 S2H_INTERFACES = DSTestRequest:DSTestWrapper.request
 H2S_INTERFACES = DSTestWrapper:DSTestIndication:host
@@ -41,31 +49,25 @@ BSVFILES = $(PROJ_DIR)/bsv/DSTestIF.bsv
 CPPFILES = $(PROJ_DIR)/cpp/main.cpp 
 
 CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK --nocache \
-				  --bsvpath $(PROJ_DIR)/bsv --bsvpath $(DDR3_LIB_DIR) \
+				  --bsvpath $(PROJ_DIR)/bsv --bsvpath $(FPGA_LIB_DIR) \
 				  --verilog $(XILINX_IP_DIR)/reset_regs \
-				  --mainclockperiod=8 \
 				  --cflags " -std=c++0x " \
 				  --cflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
+				  --bscflags " -check-assert " \
 				  --bscflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
-				  --bscflags " -D USE_XILINX_SYNC_FIFO "
+				  --bscflags " -D USE_XILINX_SYNC_FIFO "\
+				  --bscflags " -D TEST_$(DRAM_TYPE) "
 
-ifeq ($(BOARD),vc707)
-# synthesize for VC707
-
-PIN_TYPE = DDR3TopPins
-PIN_TYPE_INCLUDE = DDR3TopPins
+ifeq ($(BOARD),$(filter $(BOARD),vc707 awsf1))
+# synthesize for VC707 or AWSF1
 
 AUTOTOP = --interface pins:DSTestWrapper.pins
 
+# sync FIFOs
 SYNC_FIFO_XCI = $(CONNECTALDIR)/out/$(BOARD)/sync_fifo_w32_d16/sync_fifo_w32_d16.xci
 SYNC_BRAM_FIFO_XCI = $(CONNECTALDIR)/out/$(BOARD)/sync_bram_fifo_w36_d512/sync_bram_fifo_w36_d512.xci
 
-CONNECTALFLAGS += --verilog $(XILINX_IP_DIR)/vc707/ddr3_1GB_bluespec/ \
-				  -C $(XILINX_IP_DIR)/vc707/constraints/clocks.xdc \
-				  -C $(XILINX_IP_DIR)/vc707/constraints/ddr3_1GB_bluespec.xdc \
-				  -C $(PROJ_DIR)/constraints/user_clocks.xdc \
-				  --xci $(SYNC_FIFO_XCI) \
-				  --xci $(SYNC_BRAM_FIFO_XCI)
+CONNECTALFLAGS += --xci $(SYNC_FIFO_XCI) --xci $(SYNC_BRAM_FIFO_XCI)
 
 prebuild:: $(SYNC_FIFO_XCI) $(SYNC_BRAM_FIFO_XCI)
 
@@ -75,13 +77,36 @@ $(SYNC_FIFO_XCI): $(CORE_SCRIPT_DIR)/synth_sync_fifo.tcl
 $(SYNC_BRAM_FIFO_XCI): $(CORE_SCRIPT_DIR)/synth_sync_bram_fifo.tcl
 	(cd $(PROJECTDIR); vivado -mode batch -source $^)
 
+# AWS needs to know sync fifo is used
+ifeq ($(BOARD),awsf1)
+CONNECTALFLAGS += -D AWSF1_SYNC_FIFO
+endif
+
+# VC707 needs some more clocking constraints
+ifeq ($(BOARD),vc707)
+CONNECTALFLAGS += -C $(XILINX_IP_DIR)/vc707/constraints/clocks.xdc
+endif
+
+# DRAM
+ifeq ($(BOARD),vc707)
+PIN_TYPE = DDR3_1GB_Pins
+PIN_TYPE_INCLUDE = DDR3Common
+CONNECTALFLAGS += --verilog $(XILINX_IP_DIR)/vc707/ddr3_1GB_bluespec/ \
+				  -C $(XILINX_IP_DIR)/vc707/constraints/ddr3_1GB_bluespec.xdc 
+else
+DRAM_TYPE := AWSF1
+PINTYPE = AWSDramPins
+PIN_TYPE_INCLUDE = AWSDramCommon
+endif
+
 else
 # simulation
 
 CONNECTALFLAGS += --bscflags " -D BSIM " \
 				  --cflags " -D BSIM "
 
-endif 
+endif
+
 
 include $(CONNECTALDIR)/Makefile.connectal
 

@@ -25,7 +25,7 @@ import ConfigReg::*;
 import FIFOF::*;
 import FIFO::*;
 import BRAMFIFO::*;
-import DDR3Common::*;
+import DramCommon::*;
 import Vector::*;
 import Clocks::*;
 import SyncFifo::*;
@@ -50,19 +50,21 @@ interface DSTest;
     // indication inverse
     method ActionValue#(DoneResp) done;
     method ActionValue#(ErrResp) err;
-    // interface to DDR3
-    method ActionValue#(DDR3UserReq) dramReq;
-    method Action dramResp(DDR3UserData d);
+    // interface to Dram
+    method ActionValue#(DramUserReq) dramReq;
+    method Action dramResp(DramUserData d);
 endinterface
 
 typedef enum {Init, Write, Read, Done, Finish} TestState deriving(Bits, Eq);
+
+typedef Bit#(24) DramTestAddr; // test 1GB space (in 64B blocks)
 
 (* synthesize *)
 module mkDSTest#(Clock portalClk, Reset portalRst)(DSTest);
     Reg#(Bit#(32)) testNum <- mkReg(0);
     Reg#(Bit#(32)) testId <- mkReg(0);
-    Reg#(DDR3UserAddr) reqAddr <- mkReg(0);
-    Reg#(DDR3UserAddr) respAddr <- mkReg(0); // for read only
+    Reg#(DramTestAddr) reqAddr <- mkReg(0);
+    Reg#(DramTestAddr) respAddr <- mkReg(0); // for read only
     Reg#(Bool) readReqDone <- mkReg(False); // read req all sent
     Reg#(TestState) state <- mkReg(Init);
 
@@ -84,8 +86,8 @@ module mkDSTest#(Clock portalClk, Reset portalRst)(DSTest);
     SyncFIFOIfc#(DoneResp) doneQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);
     SyncFIFOIfc#(ErrResp) errQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);
     // dram FIFOs
-    FIFO#(DDR3UserReq) dramReqQ <- mkFIFO;
-    FIFO#(DDR3UserData) dramRespQ <- mkFIFO;
+    FIFO#(DramUserReq) dramReqQ <- mkFIFO;
+    FIFO#(DramUserData) dramRespQ <- mkFIFO;
 
 
     (* fire_when_enabled, no_implicit_conditions *)
@@ -101,8 +103,8 @@ module mkDSTest#(Clock portalClk, Reset portalRst)(DSTest);
 
     rule doWrite(state == Write);
         Vector#(16, Bit#(32)) data = replicate(testId + zeroExtend(reqAddr));
-        dramReqQ.enq(DDR3UserReq {
-            addr: reqAddr,
+        dramReqQ.enq(DramUserReq {
+            addr: zeroExtend(reqAddr),
             data: pack(data),
             wrBE: maxBound
         });
@@ -118,8 +120,8 @@ module mkDSTest#(Clock portalClk, Reset portalRst)(DSTest);
     endrule
 
     rule doReadReq(state == Read && !readReqDone);
-        dramReqQ.enq(DDR3UserReq {
-            addr: reqAddr,
+        dramReqQ.enq(DramUserReq {
+            addr: zeroExtend(reqAddr),
             data: ?,
             wrBE: 0
         });
@@ -133,7 +135,7 @@ module mkDSTest#(Clock portalClk, Reset portalRst)(DSTest);
 
     rule doReadResp(state == Read);
         dramRespQ.deq;
-        DDR3UserData resp = dramRespQ.first;
+        DramUserData resp = dramRespQ.first;
         respAddr <= respAddr + 1; // wrap back to 0 when all reads are received 
         // check resp correctness
         Vector#(16, Bit#(32)) answer = replicate(testId + zeroExtend(respAddr));
@@ -192,12 +194,12 @@ module mkDSTest#(Clock portalClk, Reset portalRst)(DSTest);
         return errQ.first;
     endmethod
 
-    method ActionValue#(DDR3UserReq) dramReq;
+    method ActionValue#(DramUserReq) dramReq;
         dramReqQ.deq;
         return dramReqQ.first;
     endmethod
 
-    method Action dramResp(DDR3UserData d);
+    method Action dramResp(DramUserData d);
         dramRespQ.enq(d);
     endmethod
 endmodule

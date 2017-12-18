@@ -1,3 +1,5 @@
+import Assert::*;
+
 // User interface:
 // all DRAM use 64B data block
 // present user with 64-bit address space, but addr should be in terms of 64B
@@ -39,7 +41,12 @@ interface DramFull#(
     // pin type
     type pinT
 );
-    interface pinT pins;
     interface DramUser#(maxReadNum, maxWriteNum, simDelay, errT) user;
+    interface pinT pins;
 endinterface
 
+`ifdef BSIM
+function Action doAssert(Bool b, String s) = action if(!b) $fdisplay(stderr, "\n%m: ASSERT FAIL!!"); dynamicAssert(b, s); endaction;
+`else
+function Action doAssert(Bool b, String s) = noAction;
+`endif

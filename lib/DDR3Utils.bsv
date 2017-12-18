@@ -29,8 +29,19 @@ import GetPut::*;
 import Connectable::*;
 import RegFile::*;
 import BRAMFIFO::*;
+import DramCommon::*;
 import DDR3Common::*;
 import SyncFifo::*;
+
+export mkDDR3User_bsim;
+export mkDDR3User_2beats;
+
+typedef 24 DDR3MaxUserAddrSz; // 1GB memory in terms of 64B
+
+function Bool addrOverflow(DramUserAddr a);
+    Bit#(DDR3MaxUserAddrSz) mask = maxBound;
+    return (a & ~zeroExtend(mask)) != 0;
+endfunction
 
 // simulation
 module mkDDR3User_bsim(
@@ -42,33 +53,42 @@ module mkDDR3User_bsim(
 );
     Integer maxReadsInFlight = valueOf(maxReadNum);
 
-    FIFO#(DDR3UserReq) reqQ <- mkFIFO;
-    FIFO#(DDR3UserData) respQ <- mkSizedFIFO(maxReadsInFlight); // match FPGA impl, don't block on FIFO size
-    Vector#(delay, FIFO#(DDR3UserData)) delayQ <- replicateM(mkFIFO);
+    FIFO#(DramUserReq) reqQ <- mkFIFO;
+    FIFO#(DramUserData) respQ <- mkSizedFIFO(maxReadsInFlight); // match FPGA impl, don't block on FIFO size
+    Vector#(delay, FIFO#(DramUserData)) delayQ <- replicateM(mkFIFO);
+    FIFO#(DDR3Err) errQ <- mkFIFO;
 
     Reg#(readCntT) readCnt <- mkReg(0);
     PulseWire inc <- mkPulseWire;
     PulseWire dec <- mkPulseWire;
 
-    RegFile#(DDR3UserAddr, DDR3UserData) mem <- mkRegFileFull;
+    RegFile#(Bit#(DDR3MaxUserAddrSz), DramUserData) mem <- mkRegFileFull;
 
     rule doWriteReq(reqQ.first.wrBE != 0);
         reqQ.deq;
-        DDR3UserReq req = reqQ.first;
-        Vector#(DDR3UserBESz, Bit#(8)) data = unpack(mem.sub(req.addr));
-        Vector#(DDR3UserBESz, Bit#(8)) wrData = unpack(req.data);
-        for(Integer i = 0; i < valueOf(DDR3UserBESz); i = i+1) begin
+        DramUserReq req = reqQ.first;
+        if(addrOverflow(req.addr)) begin
+            doAssert(False, "DDR3 write addr overflow");
+            errQ.enq(AddrOverflow);
+        end
+        Vector#(DramUserBESz, Bit#(8)) data = unpack(mem.sub(truncate(req.addr)));
+        Vector#(DramUserBESz, Bit#(8)) wrData = unpack(req.data);
+        for(Integer i = 0; i < valueOf(DramUserBESz); i = i+1) begin
             if(req.wrBE[i] == 1) begin
                 data[i] = wrData[i];
             end
         end
-        mem.upd(req.addr, pack(data));
+        mem.upd(truncate(req.addr), pack(data));
     endrule
 
     rule doReadReq(reqQ.first.wrBE == 0 && readCnt < fromInteger(maxReadsInFlight));
         reqQ.deq;
-        DDR3UserReq req = reqQ.first;
-        delayQ[0].enq(mem.sub(req.addr));
+        DramUserReq req = reqQ.first;
+        if(addrOverflow(req.addr)) begin
+            doAssert(False, "DDR3 read addr overflow");
+            errQ.enq(AddrOverflow);
+        end
+        delayQ[0].enq(mem.sub(truncate(req.addr)));
         inc.send; // inc read cnt
     endrule
 
@@ -77,7 +97,7 @@ module mkDDR3User_bsim(
     end
 
     rule doSendResp;
-        DDR3UserData resp <- toGet(delayQ[valueOf(delay) - 1]).get;
+        DramUserData resp <- toGet(delayQ[valueOf(delay) - 1]).get;
         respQ.enq(resp);
         dec.send; // dec read cnt
     endrule
@@ -106,16 +126,16 @@ module mkDDR3User_bsim(
         readCnt <= next;
     endrule
 
-    //method Bool initDone = True;
-    method Action req(DDR3UserReq r);
+    method Action req(DramUserReq r);
         reqQ.enq(r);
     endmethod
-    method ActionValue#(DDR3UserData) rdResp;
+    method ActionValue#(DramUserData) rdResp;
         respQ.deq;
         return respQ.first;
     endmethod
-    method ActionValue#(DDR3Err) err if(False);
-        return ?;
+    method ActionValue#(DDR3Err) err;
+        errQ.deq;
+        return errQ.first;
     endmethod
 endmodule
 
@@ -130,31 +150,25 @@ module mkDDR3User_2beats#(
     DDR3_1GB_App appIfc,
     Clock user_clk,
     Reset user_rst,
-    DDR3_Controller_Config cfg
+    Bool useBramRespBuffer
 )(
     DDR3_1GB_User#(maxReadNum, simDelay)
 ) provisos (
-    Mul#(2, DDR3AppDataSz, DDR3UserDataSz), // app data * 2 = user data = 512 bits
+    Mul#(2, DDR3AppDataSz, DramUserDataSz), // app data * 2 = user data = 512 bits
     Alias#(readCntT, Bit#(TLog#(TAdd#(maxReadNum, 1)))), // 0 ~ maxReadNum
     Add#(1, a__, maxReadNum)
 );
-    // sync req & resp Q
-    SyncFIFOIfc#(DDR3UserReq) fRequest;
-    SyncFIFOIfc#(DDR3UserData) fRespSync;
+    // sync req & resp Q (FIFO size doesn't matter when we use xilinx sync FIFO)
+    SyncFIFOIfc#(DramUserReq) fRequest;
+    SyncFIFOIfc#(DramUserData) fRespSync;
     Clock app_clk <- exposeCurrentClock;
     Reset app_rst <- exposeCurrentReset;
-    if(cfg.useBramSyncFifo) begin
-        fRequest  <- mkSyncBramFifo(cfg.syncFifoSz, user_clk, user_rst, app_clk, app_rst);
-        fRespSync <- mkSyncBramFifo(cfg.syncFifoSz, app_clk, app_rst, user_clk, user_rst);
-    end
-    else begin
-        fRequest  <- mkSyncFifo(cfg.syncFifoSz, user_clk, user_rst, app_clk, app_rst);
-        fRespSync <- mkSyncFifo(cfg.syncFifoSz, app_clk, app_rst, user_clk, user_rst);
-    end
+    fRequest  <- mkSyncFifo(2, user_clk, user_rst, app_clk, app_rst);
+    fRespSync <- mkSyncFifo(2, app_clk, app_rst, user_clk, user_rst);
 
     // resp buffer Q
     FIFOF#(DDR3AppData) fResponse; // 1 read resp == 2 fifo elements
-    if(cfg.useBramRespBuffer) begin
+    if(useBramRespBuffer) begin
         fResponse <- mkSizedBRAMFIFOF(2 * valueOf(maxReadNum));
     end
     else begin
@@ -190,6 +204,7 @@ module mkDDR3User_2beats#(
     Bool read_data_ready  = appIfc.app_rd_data_valid;
 
     // check error
+    Reg#(Bool) reqAddrOverflow <- mkReg(False);
     Reg#(Bool) dropResp <- mkReg(False);
     Reg#(Bool) readCntOverflow <- mkReg(False);
     Reg#(Bool) readCntUnderflow <- mkReg(False);
@@ -197,7 +212,7 @@ module mkDDR3User_2beats#(
     Reg#(Bool) errSent <- mkReg(False); // only send error once
 
     // app addr is for 8B, while user req addr is for 64B
-    function DDR3AppAddr getAppAddr(DDR3UserAddr a) = {a, 3'b0};
+    function DDR3AppAddr getAppAddr(DramUserAddr a) = truncate({a, 3'b0});
     
     (* fire_when_enabled, no_implicit_conditions *)
     rule drive_enables;
@@ -227,6 +242,10 @@ module mkDDR3User_2beats#(
    	    wAppWdfData  <= truncate(fRequest.first.data);
    	    wAppWdfMask  <= ~truncate(fRequest.first.wrBE); // app mask = 1 means NOT write
    	    pwAppWdfWren.send;
+        // check addr overflow
+        if(addrOverflow(fRequest.first.addr)) begin
+            reqAddrOverflow <= True;
+        end
     endrule
        
     // user write req: second cycle to send MSB of write data & deq user req
@@ -255,6 +274,10 @@ module mkDDR3User_2beats#(
  	    wAppAddr <= getAppAddr(fRequest.first.addr);
  	    pwAppEn.send;
         incPendRead.send; // incr pending read cnt
+        // check addr overflow
+        if(addrOverflow(fRequest.first.addr)) begin
+            reqAddrOverflow <= True;
+        end
     endrule
 
     // get read resp from app ifc
@@ -308,7 +331,11 @@ module mkDDR3User_2beats#(
 
     // send error
     rule send_error(!errSent);
-        if(dropResp) begin
+        if(reqAddrOverflow) begin
+            fErr.enq(AddrOverflow);
+            errSent <= True;
+        end
+        else if(dropResp) begin
             fErr.enq(DropResp);
             errSent <= True;
         end
@@ -322,13 +349,11 @@ module mkDDR3User_2beats#(
         end
     endrule
 
-    //method initDone = initialized;
-    
-    method Action req(DDR3UserReq r);
+    method Action req(DramUserReq r);
         fRequest.enq(r);
     endmethod
    
-    method ActionValue#(DDR3UserData) rdResp;
+    method ActionValue#(DramUserData) rdResp;
         fRespSync.deq;
         return fRespSync.first;
     endmethod

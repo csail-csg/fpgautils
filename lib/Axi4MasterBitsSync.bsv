@@ -1,11 +1,16 @@
+import GetPut::*;
+import Clocks::*;
+
 import AxiBits::*;
 import Axi4MasterSlave::*;
-import Cocks::*;
+
 import SyncFifo::*;
 
 // This module sync from user clock domain to AXI master bits (pins) domain. It
 // provides user with a AXI slave interface, and also outputs a master bits
 // (pins) interface.
+
+// This module should be clocked under the master bits clock domain.
 
 interface Axi4MasterBitsSync#(
     numeric type addrSz,
@@ -13,18 +18,18 @@ interface Axi4MasterBitsSync#(
     numeric type idSz
 );
     interface Axi4Slave#(addrSz, dataSz, idSz) slave;
-    interface Axi4MasterBits#(addrSz, dataSz, idSz, Empty) masterBits;
+    interface Axi4MasterBits#(addrSz, dataSz, idSz, Empty) master;
 endinterface
 
 module mkAxi4MasterBitsSync#(
     Clock slaveClk,
-    Reset slaveRst,
+    Reset slaveRst
 )(Axi4MasterBitsSync#(addrSz, dataSz, idSz)) provisos(
     Alias#(rdReqT, Axi4ReadRequest#(addrSz, idSz)),
     Alias#(rdRespT, Axi4ReadResponse#(dataSz, idSz)),
     Alias#(wrReqT, Axi4WriteRequest#(addrSz, idSz)),
     Alias#(wrDataT, Axi4WriteData#(dataSz, idSz)),
-    Alias#(wrRespT, Axi4WRiteResponse#(idSz))
+    Alias#(wrRespT, Axi4WriteResponse#(idSz))
 );
 
     Clock masterClk <- exposeCurrentClock;
@@ -145,50 +150,60 @@ module mkAxi4MasterBitsSync#(
         });
     endrule
 
-    method aresetn = 1;
-    method araddr  = araddrWire;
-    method arburst = arburstWire;
-    method arcache = arcacheWire;
-    method arid    = aridWire;
-    method arlen   = arlenWire;
-    method arlock  = arlockWire;
-    method arprot  = arprotWire;
-    method arqos   = arqosWire;
-    method arsize  = arsizeWire;
-    method arvalid = pack(arfifo.notEmpty);
-    method Action arready(Bit#(1) v); arreadyWire <= unpack(v); endmethod
+    interface Axi4Slave slave;
+        interface Put req_ar = toPut(arfifo);
+        interface Get resp_read = toGet(rfifo);
+        interface Put req_aw = toPut(awfifo);
+        interface Put resp_write = toPut(wfifo);
+        interface Get resp_b = toGet(bfifo);
+    endinterface
 
-    method awaddr  = awaddrWire;
-    method awburst = awburstWire;
-    method awcache = awcacheWire;
-    method awid    = awidWire;
-    method awlen   = awlenWire;
-    method awlock  = awlockWire;
-    method awprot  = awprotWire;
-    method awqos   = awqosWire;
-    method awsize  = awsizeWire;
-    method awvalid = pack(awfifo.notEmpty);
-    method Action awready(Bit#(1) v); awreadyWire <= unpack(v); endmethod
+    interface Axi4MasterBits master;
+        method aresetn = 1;
+        method araddr  = araddrWire;
+        method arburst = arburstWire;
+        method arcache = arcacheWire;
+        method arid    = aridWire;
+        method arlen   = arlenWire;
+        method arlock  = arlockWire;
+        method arprot  = arprotWire;
+        method arqos   = arqosWire;
+        method arsize  = arsizeWire;
+        method arvalid = pack(arfifo.notEmpty);
+        method Action arready(Bit#(1) v); arreadyWire <= unpack(v); endmethod
 
-    method bready = pack(bfifo.notFull);
-    method Action bid(Bit#(idSz) v); bidWire <= v; endmethod
-    method Action bresp(Bit#(2) v);  brespWire <= v; endmethod
-    method Action bvalid(Bit#(1) v); bvalidWire <= unpack(v); endmethod
+        method awaddr  = awaddrWire;
+        method awburst = awburstWire;
+        method awcache = awcacheWire;
+        method awid    = awidWire;
+        method awlen   = awlenWire;
+        method awlock  = awlockWire;
+        method awprot  = awprotWire;
+        method awqos   = awqosWire;
+        method awsize  = awsizeWire;
+        method awvalid = pack(awfifo.notEmpty);
+        method Action awready(Bit#(1) v); awreadyWire <= unpack(v); endmethod
 
-    method rready = pack(rfifo.notFull);
-    method Action rdata(Bit#(dataSz) v); rdataWire <= v; endmethod
-    method Action rid(Bit#(idSz) v);     ridWire <= v; endmethod
-    method Action rlast(Bit#(1) v);      rlastWire <= unpack(v); endmethod
-    method Action rresp(Bit#(2) v);      rrespWire <= v; endmethod
-    method Action rvalid(Bit#(1) v);     rvalidWire <= unpack(v); endmethod
+        method bready = pack(bfifo.notFull);
+        method Action bid(Bit#(idSz) v); bidWire <= v; endmethod
+        method Action bresp(Bit#(2) v);  brespWire <= v; endmethod
+        method Action bvalid(Bit#(1) v); bvalidWire <= unpack(v); endmethod
 
-    method wdata  = wdataWire;
-    method wid    = widWire;
-    method wlast  = wlastWire;
-    method wstrb  = wstrbWire;
-    method wvalid = pack(wfifo.notEmpty);
-    method Action wready(Bit#(1) v); wreadyWire <= unpack(v); endmethod
+        method rready = pack(rfifo.notFull);
+        method Action rdata(Bit#(dataSz) v); rdataWire <= v; endmethod
+        method Action rid(Bit#(idSz) v);     ridWire <= v; endmethod
+        method Action rlast(Bit#(1) v);      rlastWire <= unpack(v); endmethod
+        method Action rresp(Bit#(2) v);      rrespWire <= v; endmethod
+        method Action rvalid(Bit#(1) v);     rvalidWire <= unpack(v); endmethod
 
-    interface Empty extra;
+        method wdata  = wdataWire;
+        method wid    = widWire;
+        method wlast  = wlastWire;
+        method wstrb  = wstrbWire;
+        method wvalid = pack(wfifo.notEmpty);
+        method Action wready(Bit#(1) v); wreadyWire <= unpack(v); endmethod
+
+        interface Empty extra;
+        endinterface
     endinterface
 endmodule

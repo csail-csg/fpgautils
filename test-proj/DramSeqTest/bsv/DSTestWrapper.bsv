@@ -32,16 +32,30 @@ import Connectable::*;
 
 import DSTestIF::*;
 import DSTest::*;
-import DDR3Wrapper::*;
-import DDR3Common::*;
-import DDR3TopPins::*;
 import UserClkRst::*;
 import SyncFifo::*;
+import DramCommon::*;
+import DDR3Common::*;
+import AWSDramCommon::*;
+
+import DDR3Wrapper::*;
+import AWSDramWrapper::*;
+
+`ifdef TEST_VC707
+typedef DDR3UserWrapper DramUserWrapper;
+typedef DDR3FullWrapper DramFullWrapper;
+typedef DDR3_1GB_Pins DramPins;
+`endif
+`ifdef TEST_AWSF1
+typedef AWSDramUserWrapper DramUserWrapper;
+typedef AWSDramFullWrapper DramFullWrapper;
+typedef AWSDramPins DramPins;
+`endif
 
 interface DSTestWrapper;
     interface DSTestRequest request;
 `ifndef BSIM
-    interface DDR3TopPins pins;
+    interface DramPins pins;
 `endif
 endinterface
 
@@ -59,17 +73,28 @@ module mkDSTestWrapper#(HostInterface host, DSTestIndication indication)(DSTestW
     Reset userRst = portalRst;
 `endif
 
-    // instantiate DDR3
+    // instantiate Dram
+`ifdef TEST_VC707
     Clock sys_clk = host.tsys_clk_200mhz_buf;
     Reset sys_rst_n <- mkAsyncResetFromCR(4, sys_clk);
-    DDR3Wrapper ddr3Ifc <- mkDDR3Wrapper(sys_clk, sys_rst_n, clocked_by userClk, reset_by userRst);
+    DramFullWrapper dram <- mkDDR3Wrapper(
+        sys_clk, sys_rst_n, clocked_by userClk, reset_by userRst
+    );
+`endif
+`ifdef TEST_AWSF1
+    DramFullWrapper dram <- mkAWSDramWrapper(
+        portalClk, portalRst, clocked_by userClk, reset_by userRst
+    );
+`endif
 
     // user test
-    DSTest test <- mkDSTest(portalClk, portalRst, clocked_by userClk, reset_by userRst);
+    DSTest test <- mkDSTest(
+        portalClk, portalRst, clocked_by userClk, reset_by userRst
+    );
 
     // connect to DDR3
-    mkConnection(test.dramReq, ddr3Ifc.user.req);
-    mkConnection(test.dramResp, ddr3Ifc.user.rdResp);
+    mkConnection(test.dramReq, dram.user.req);
+    mkConnection(test.dramResp, dram.user.rdResp);
 
     // connect indication
     rule doDone;
@@ -83,7 +108,7 @@ module mkDSTestWrapper#(HostInterface host, DSTestIndication indication)(DSTestW
     endrule
 
     SyncFIFOIfc#(DDR3Err) dramErrQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);
-    mkConnection(toPut(dramErrQ).put, ddr3Ifc.user.err);
+    mkConnection(toPut(dramErrQ).put, dram.user.err);
     rule doDramErr;
         DDR3Err e <- toGet(dramErrQ).get;
         indication.dramErr(zeroExtend(pack(e)));
@@ -91,19 +116,9 @@ module mkDSTestWrapper#(HostInterface host, DSTestIndication indication)(DSTestW
 
     // indication can only be sent after connectal is inited (i.e. after start req)
     Reg#(Bool) inited <- mkReg(False);
-    //Reg#(Bool) lastDDR3Status <- mkReg(False);
-    //rule doDramStatus(inited);
-    //    Bool ddr3_init = ddr3Ifc.user.initDone;
-    //    if(ddr3_init!= lastDDR3Status) begin
-    //        lastDDR3Status <= ddr3_init;
-    //        indication.dramStatus(ddr3_init);
-    //    end
-    //endrule
 
 `ifndef BSIM
-    interface DDR3TopPins pins;
-        interface ddr3 = ddr3Ifc.ddr3;
-    endinterface
+    interface pins = dram.pins;
 `endif
     interface DSTestRequest request;
         method Action start(Bit#(32) num) if(!inited);

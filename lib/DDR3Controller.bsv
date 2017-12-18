@@ -22,6 +22,8 @@
 // SOFTWARE.
 
 import Clocks::*;
+
+import DramCommon::*;
 import DDR3Common::*;
 import DDR3Import::*;
 import DDR3Utils::*;
@@ -30,9 +32,9 @@ export mkDDR3_1GB_Controller;
 
 module mkDDR3_1GB_Controller#(
     Clock sys_clk, Reset sys_rst_n,
-    DDR3_Controller_Config cfg
+    Bool useBramRespBuffer
 )(
-    DDR3_1GB_Controller#(maxReadNum, simDelay)
+    DDR3_1GB_Full#(maxReadNum, simDelay)
 ) provisos (
     Add#(1, a__, maxReadNum),
     Add#(1, b__, simDelay)
@@ -55,12 +57,14 @@ module mkDDR3_1GB_Controller#(
         clocked_by app_clock, reset_by app_reset_n
     );
 
-    interface ddr3 = ddr3Ifc.ddr3;
     interface user = userIfc;
+    interface pins = ddr3Ifc.ddr3;
 `else
     // simulation
     DDR3_1GB_User#(maxReadNum, simDelay) userIfc <- mkDDR3User_bsim;
     interface user = userIfc;
+    interface Empty pins;
+    endinterface
 `endif
 endmodule
 

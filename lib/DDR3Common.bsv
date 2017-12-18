@@ -26,7 +26,9 @@ import FShow::*;
 import ClientServer::*;
 import DefaultValue::*;
 
-// 1GB DDR3 types and interfaces
+import DramCommon::*;
+
+// VC707 1GB DDR3
 
 // physical interface
 typedef 14 DDR3PhyRowWidth;
@@ -35,35 +37,35 @@ typedef 3 DDR3PhyBankWidth;
 (* always_enabled, always_ready *)
 interface DDR3_1GB_Pins;
     // XXX pin names appear in XDC, don't change!
-    (* prefix = "", result = "CLK_P" *)
+    (* prefix = "DDR3", result = "CLK_P" *)
     method    Bit#(1)                clk_p;
-    (* prefix = "", result = "CLK_N" *)
+    (* prefix = "DDR3", result = "CLK_N" *)
     method    Bit#(1)                clk_n;
-    (* prefix = "", result = "A" *)
+    (* prefix = "DDR3", result = "A" *)
     method    Bit#(DDR3PhyRowWidth)  a;
-    (* prefix = "", result = "BA" *)
+    (* prefix = "DDR3", result = "BA" *)
     method    Bit#(DDR3PhyBankWidth) ba;
-    (* prefix = "", result = "RAS_N" *)
+    (* prefix = "DDR3", result = "RAS_N" *)
     method    Bit#(1)                ras_n;
-    (* prefix = "", result = "CAS_N" *)
+    (* prefix = "DDR3", result = "CAS_N" *)
     method    Bit#(1)                cas_n;
-    (* prefix = "", result = "WE_N" *)
+    (* prefix = "DDR3", result = "WE_N" *)
     method    Bit#(1)                we_n;
-    (* prefix = "", result = "RESET_N" *)
+    (* prefix = "DDR3", result = "RESET_N" *)
     method    Bit#(1)                reset_n;
-    (* prefix = "", result = "CS_N" *)
+    (* prefix = "DDR3", result = "CS_N" *)
     method    Bit#(1)                cs_n;
-    (* prefix = "", result = "ODT" *)
+    (* prefix = "DDR3", result = "ODT" *)
     method    Bit#(1)                odt;
-    (* prefix = "", result = "CKE" *)
+    (* prefix = "DDR3", result = "CKE" *)
     method    Bit#(1)                cke;
-    (* prefix = "", result = "DM" *)
+    (* prefix = "DDR3", result = "DM" *)
     method    Bit#(8)                dm;
-    (* prefix = "DQ" *)
+    (* prefix = "DDR3_DQ" *)
     interface Inout#(Bit#(64))       dq;
-    (* prefix = "DQS_P" *)
+    (* prefix = "DDR3_DQS_P" *)
     interface Inout#(Bit#(8))        dqs_p;
-    (* prefix = "DQS_N" *)
+    (* prefix = "DDR3_DQS_N" *)
     interface Inout#(Bit#(8))        dqs_n;
 endinterface
 
@@ -101,56 +103,24 @@ interface DDR3_1GB_Xilinx;
 endinterface
 
 // User interface
-typedef 512 DDR3UserDataSz;
-typedef TDiv#(DDR3UserDataSz, 8) DDR3UserBESz;
-typedef 24 DDR3UserAddrSz; // in terms of 64B
-
-typedef Bit#(DDR3UserDataSz) DDR3UserData;
-typedef Bit#(DDR3UserBESz) DDR3UserBE;
-typedef Bit#(DDR3UserAddrSz) DDR3UserAddr;
-
-typedef struct { // user read/write req
-    DDR3UserAddr addr;
-    DDR3UserData data;
-    DDR3UserBE wrBE; // all 0 means read, otherwise wrBE[i]=1 means to write byte i
-} DDR3UserReq deriving(Bits, Eq, FShow);
-
 typedef enum {
+    AddrOverflow,
     DropResp,
     ReadCntOverflow,
     ReadCntUnderflow
 } DDR3Err deriving(Bits, Eq, FShow);
 
-interface DDR3_1GB_User#(
-    numeric type maxReadNum, // maximum in-flight read cnt
-    numeric type simDelay // only matters in simulation
-);
-    //method Bool initDone;
-    method Action req(DDR3UserReq r);
-    method ActionValue#(DDR3UserData) rdResp; // only read has resp
-    method ActionValue#(DDR3Err) err;
-endinterface
+typedef DramUser#(
+    maxReadNum, 0, simDelay, DDR3Err
+) DDR3_1GB_User#(numeric type maxReadNum, numeric type simDelay);
 
-interface DDR3_1GB_Controller#(
-    numeric type maxReadNum, // maximum in-flight read cnt
-    numeric type simDelay // only matters in simulation
-);
-`ifndef BSIM
-    interface DDR3_1GB_Pins ddr3;
+// Full controller
+typedef DramFull#(
+    maxReadNum, 0, simDelay, DDR3Err,
+`ifdef BSIM
+    Empty
+`else
+    DDR3_1GB_Pins
 `endif
-    interface DDR3_1GB_User#(maxReadNum, simDelay) user;
-endinterface
+) DDR3_1GB_Full#(numeric type maxReadNum, numeric type simDelay);
 
-typedef struct {
-    Integer syncFifoSz; // depth of sync fifos
-    Bool useBramSyncFifo; // use bram fifo for sync fifos
-    Bool useBramRespBuffer; // use bram fifo to buffer read resp to do flow ctrl (depth = maxReadNum * 2)
-} DDR3_Controller_Config deriving(Bits, Eq);
-
-instance DefaultValue#(DDR3_Controller_Config);
-    defaultValue = DDR3_Controller_Config {
-        syncFifoSz: 8, // 8 elements could provide enough BW according to SyncTest
-        useBramSyncFifo: False,
-        useBramRespBuffer: True // use BRAM should allows us to have large maxReadNum
-    };
-endinstance
