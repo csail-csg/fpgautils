@@ -15,7 +15,7 @@ typedef Bit#(AWSDramAxiBESz) AWSDramAxiBE;
 
 interface AWSDramPins;
     (* always_enabled, always_ready, prefix = "" *)
-    interface AxiMasterBits#(
+    interface Axi4MasterBits#(
         AWSDramAxiAddrSz,
         AWSDramAxiDataSz,
         AWSDramAxiIdSz,
