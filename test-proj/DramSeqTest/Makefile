@@ -33,7 +33,11 @@ XILINX_IP_DIR = $(PROJ_DIR)/../../xilinx
 CORE_SCRIPT_DIR = $(PROJ_DIR)/../../core-scripts
 
 BUILD_DIR = $(PROJ_DIR)/build
+ifeq ($(DRAM_TYPE),)
+PROJECTDIR = $(BUILD_DIR)/$(BOARD)
+else
 PROJECTDIR = $(BUILD_DIR)/$(BOARD).$(DRAM_TYPE)
+endif
 
 S2H_INTERFACES = DSTestRequest:DSTestWrapper.request
 H2S_INTERFACES = DSTestWrapper:DSTestIndication:host

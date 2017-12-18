@@ -65,9 +65,12 @@ module mkAWSDramController#(
         AWSDramMaxUserAddrSz, simDelay
     ) axiIfc <- mkSimAxi4Dram;
 `else
+    Clock userClk <- exposeCurrentClock;
+    Reset userRst <- exposeCurrentReset;
     Axi4MasterBitsSync#(
         AWSDramAxiAddrSz, AWSDramAxiDataSz, AWSDramAxiIdSz
     ) axiIfc <- mkAxi4MasterBitsSync(
+        userClk, userRst,
         clocked_by dramAxiClk, reset_by dramAxiRst
     );
 `endif
