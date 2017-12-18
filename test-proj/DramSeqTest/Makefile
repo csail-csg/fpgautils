@@ -27,10 +27,10 @@ USER_CLK_PERIOD ?= 40
 # DRAM type to test VC707 or AWSF1
 DRAM_TYPE ?= VC707
 ifeq ($(BOARD),vc707)
-DRAM_TYPE := VC707
+DRAM_TYPE = VC707
 endif
 ifeq ($(BOARD),awsf1)
-DRAM_TYPE := AWSF1
+DRAM_TYPE = AWSF1
 endif
 
 PROJ_DIR = $(CURDIR)
@@ -48,7 +48,7 @@ BSVFILES = $(PROJ_DIR)/bsv/DSTestIF.bsv
 
 CPPFILES = $(PROJ_DIR)/cpp/main.cpp 
 
-CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK --nocache \
+CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK --nocache -v \
 				  --bsvpath $(PROJ_DIR)/bsv --bsvpath $(FPGA_LIB_DIR) \
 				  --verilog $(XILINX_IP_DIR)/reset_regs \
 				  --cflags " -std=c++0x " \
@@ -94,7 +94,6 @@ PIN_TYPE_INCLUDE = DDR3Common
 CONNECTALFLAGS += --verilog $(XILINX_IP_DIR)/vc707/ddr3_1GB_bluespec/ \
 				  -C $(XILINX_IP_DIR)/vc707/constraints/ddr3_1GB_bluespec.xdc 
 else
-DRAM_TYPE := AWSF1
 PINTYPE = AWSDramPins
 PIN_TYPE_INCLUDE = AWSDramCommon
 endif
