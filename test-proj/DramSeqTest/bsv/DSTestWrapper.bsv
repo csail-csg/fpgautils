@@ -42,11 +42,13 @@ import DDR3Wrapper::*;
 import AWSDramWrapper::*;
 
 `ifdef TEST_VC707
+typedef DDR3Err DramErr;
 typedef DDR3UserWrapper DramUserWrapper;
 typedef DDR3FullWrapper DramFullWrapper;
 typedef DDR3_1GB_Pins DramPins;
 `endif
 `ifdef TEST_AWSF1
+typedef AWSDramErr DramErr;
 typedef AWSDramUserWrapper DramUserWrapper;
 typedef AWSDramFullWrapper DramFullWrapper;
 typedef AWSDramPins DramPins;
@@ -107,10 +109,10 @@ module mkDSTestWrapper#(HostInterface host, DSTestIndication indication)(DSTestW
         indication.readErr(r.testId, r.rdAddr);
     endrule
 
-    SyncFIFOIfc#(DDR3Err) dramErrQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);
+    SyncFIFOIfc#(DramErr) dramErrQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);
     mkConnection(toPut(dramErrQ).put, dram.user.err);
     rule doDramErr;
-        DDR3Err e <- toGet(dramErrQ).get;
+        DramErr e <- toGet(dramErrQ).get;
         indication.dramErr(zeroExtend(pack(e)));
     endrule
 
