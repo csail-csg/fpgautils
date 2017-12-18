@@ -53,7 +53,7 @@ module mkDDR3_1GB_Controller#(
     Reset user_rst_n <- exposeCurrentReset;
     
     DDR3_1GB_User#(maxReadNum, simDelay) userIfc <- mkDDR3User_2beats(
-        ddr3Ifc.app, user_clk, user_rst_n, cfg,
+        ddr3Ifc.app, user_clk, user_rst_n, useBramRespBuffer,
         clocked_by app_clock, reset_by app_reset_n
     );
 

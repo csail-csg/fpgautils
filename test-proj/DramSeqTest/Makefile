@@ -25,13 +25,7 @@ CONNECTALDIR = $(RISCY_HOME)/connectal
 
 USER_CLK_PERIOD ?= 40
 # DRAM type to test VC707 or AWSF1
-DRAM_TYPE ?= VC707
-ifeq ($(BOARD),vc707)
-DRAM_TYPE = VC707
-endif
-ifeq ($(BOARD),awsf1)
-DRAM_TYPE = AWSF1
-endif
+DRAM_TYPE ?=
 
 PROJ_DIR = $(CURDIR)
 FPGA_LIB_DIR = $(PROJ_DIR)/../../lib
@@ -55,8 +49,7 @@ CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK --nocache -v \
 				  --cflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
 				  --bscflags " -check-assert " \
 				  --bscflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
-				  --bscflags " -D USE_XILINX_SYNC_FIFO "\
-				  --bscflags " -D TEST_$(DRAM_TYPE) "
+				  --bscflags " -D USE_XILINX_SYNC_FIFO "
 
 ifeq ($(BOARD),$(filter $(BOARD),vc707 awsf1))
 # synthesize for VC707 or AWSF1
@@ -91,18 +84,21 @@ endif
 ifeq ($(BOARD),vc707)
 PIN_TYPE = DDR3_1GB_Pins
 PIN_TYPE_INCLUDE = DDR3Common
-CONNECTALFLAGS += --verilog $(XILINX_IP_DIR)/vc707/ddr3_1GB_bluespec/ \
-				  -C $(XILINX_IP_DIR)/vc707/constraints/ddr3_1GB_bluespec.xdc 
+CONNECTALFLAGS += --bscflags " -D TEST_VC707 " \
+				  --verilog $(XILINX_IP_DIR)/vc707/ddr3_1GB_bluespec/ \
+				  -C $(XILINX_IP_DIR)/vc707/constraints/ddr3_1GB_bluespec.xdc
 else
 PINTYPE = AWSDramPins
 PIN_TYPE_INCLUDE = AWSDramCommon
+CONNECTALFLAGS += --bscflags " -D TEST_AWSF1 "
 endif
 
 else
 # simulation
 
 CONNECTALFLAGS += --bscflags " -D BSIM " \
-				  --cflags " -D BSIM "
+				  --cflags " -D BSIM " \
+				  --bscflags " -D TEST_$(DRAM_TYPE) "
 
 endif
 
