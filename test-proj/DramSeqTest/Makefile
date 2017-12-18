@@ -92,8 +92,9 @@ CONNECTALFLAGS += --bscflags " -D TEST_VC707 " \
 				  --verilog $(XILINX_IP_DIR)/vc707/ddr3_1GB_bluespec/ \
 				  -C $(XILINX_IP_DIR)/vc707/constraints/ddr3_1GB_bluespec.xdc
 else
-PINTYPE = AWSDramPins
+PIN_TYPE = AWSDramPins
 PIN_TYPE_INCLUDE = AWSDramCommon
+CONNECTALFLAGS += -D AWSF1_DDR_A
 CONNECTALFLAGS += --bscflags " -D TEST_AWSF1 "
 endif
 
