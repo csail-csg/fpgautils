@@ -1,6 +1,7 @@
 import GetPut::*;
 import BRAMFIFO::*;
 import FIFO::*;
+import Clocks::*;
 
 import Axi4MasterSlave::*;
 import AxiBits::*;
