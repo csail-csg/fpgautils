@@ -37,29 +37,29 @@ typedef 3 DDR3PhyBankWidth;
 (* always_enabled, always_ready *)
 interface DDR3_1GB_Pins;
     // XXX pin names appear in XDC, don't change!
-    (* prefix = "DDR3", result = "CLK_P" *)
+    (* prefix = "", result = "DDR3_CLK_P" *)
     method    Bit#(1)                clk_p;
-    (* prefix = "DDR3", result = "CLK_N" *)
+    (* prefix = "", result = "DDR3_CLK_N" *)
     method    Bit#(1)                clk_n;
-    (* prefix = "DDR3", result = "A" *)
+    (* prefix = "", result = "DDR3_A" *)
     method    Bit#(DDR3PhyRowWidth)  a;
-    (* prefix = "DDR3", result = "BA" *)
+    (* prefix = "", result = "DDR3_BA" *)
     method    Bit#(DDR3PhyBankWidth) ba;
-    (* prefix = "DDR3", result = "RAS_N" *)
+    (* prefix = "", result = "DDR3_RAS_N" *)
     method    Bit#(1)                ras_n;
-    (* prefix = "DDR3", result = "CAS_N" *)
+    (* prefix = "", result = "DDR3_CAS_N" *)
     method    Bit#(1)                cas_n;
-    (* prefix = "DDR3", result = "WE_N" *)
+    (* prefix = "", result = "DDR3_WE_N" *)
     method    Bit#(1)                we_n;
-    (* prefix = "DDR3", result = "RESET_N" *)
+    (* prefix = "", result = "DDR3_RESET_N" *)
     method    Bit#(1)                reset_n;
-    (* prefix = "DDR3", result = "CS_N" *)
+    (* prefix = "", result = "DDR3_CS_N" *)
     method    Bit#(1)                cs_n;
-    (* prefix = "DDR3", result = "ODT" *)
+    (* prefix = "", result = "DDR3_ODT" *)
     method    Bit#(1)                odt;
-    (* prefix = "DDR3", result = "CKE" *)
+    (* prefix = "", result = "DDR3_CKE" *)
     method    Bit#(1)                cke;
-    (* prefix = "DDR3", result = "DM" *)
+    (* prefix = "", result = "DDR3_DM" *)
     method    Bit#(8)                dm;
     (* prefix = "DDR3_DQ" *)
     interface Inout#(Bit#(64))       dq;
