@@ -104,7 +104,6 @@ endinterface
 
 // User interface
 typedef enum {
-    AddrOverflow,
     DropResp,
     ReadCntOverflow,
     ReadCntUnderflow

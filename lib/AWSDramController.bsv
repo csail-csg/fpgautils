@@ -13,6 +13,7 @@ import Axi4MasterBitsSync::*;
 import SimAxiDram::*;
 
 export mkAWSDramController;
+export mkAWSDramBlockController;
 
 `ifdef BSIM
 typedef 24 AWSDramMaxUserAddrSz; // simulation: 1GB
@@ -20,13 +21,11 @@ typedef 24 AWSDramMaxUserAddrSz; // simulation: 1GB
 typedef 28 AWSDramMaxUserAddrSz; // F1 FPGA: 16GB
 `endif
 
-function Bool addrOverflow(DramUserAddr a);
-    Bit#(AWSDramMaxUserAddrSz) mask = maxBound;
-    return (a & ~zeroExtend(mask)) != 0;
-endfunction
-
+// when translate to AXI byte address, we chop off overflowed MSBs. Overflow
+// may not be an error because of wrong path loads
 function AWSDramAxiAddr toAWSDramAxiAddr(DramUserAddr a);
-    return {a, 6'b0};
+    Bit#(AWSDramMaxUserAddrSz) addr = truncate(a);
+    return zeroExtend({addr, 6'b0});
 endfunction
 
 module mkAWSDramController#(
@@ -43,8 +42,6 @@ module mkAWSDramController#(
     FIFO#(DramUserReq) reqQ <- mkFIFO;
     // output read resp FIFO
     FIFO#(DramUserData) readRespQ <- mkFIFO;
-    // output err FIFO
-    FIFO#(AWSDramErr) errQ <- mkFIFO;
 
     // write buffer
     WriteBuffer#(maxWriteNum, AWSDramMaxUserAddrSz) writeBuffer <- mkWriteBuffer;
@@ -80,11 +77,6 @@ module mkAWSDramController#(
     rule doReadReq(reqQ.first.wrBE == 0);
         reqQ.deq;
         DramUserReq req = reqQ.first;
-        // check addr overflow
-        if(addrOverflow(req.addr)) begin
-            errQ.enq(AddrOverflow);
-            doAssert(False, "Dram read addr overflow");
-        end
         // check forward or stall
         WrBuffBypassResult bypassRes = writeBuffer.bypass(truncate(req.addr));
         case(bypassRes) matches
@@ -118,11 +110,6 @@ module mkAWSDramController#(
     rule doWriteReq(reqQ.first.wrBE != 0);
         reqQ.deq;
         DramUserReq req = reqQ.first;
-        // check addr overflow
-        if(addrOverflow(req.addr)) begin
-            errQ.enq(AddrOverflow);
-            doAssert(False, "Dram write addr overflow");
-        end
         // insert to write buffer
         writeBuffer.enq(truncate(req.addr), req.data, req.wrBE);
         // req DRAM
@@ -133,7 +120,7 @@ module mkAWSDramController#(
             burst: 1,
             prot: 0,
             cache: 3,
-            id: 0, // use same ID to keep writes in order
+            id: 0, // use same ID to keep resp in order
             lock: 0,
             qos: 0
         });
@@ -172,9 +159,121 @@ module mkAWSDramController#(
             readRespQ.deq;
             return readRespQ.first;
         endmethod
-        method ActionValue#(AWSDramErr) err;
-            errQ.deq;
-            return errQ.first;
+        method ActionValue#(AWSDramErr) err if(False);
+            return ?;
+        endmethod
+    endinterface
+
+`ifdef BSIM
+    interface Empty pins;
+    endinterface
+`else
+    interface AWSDramPins pins;
+        interface axiMaster = axiIfc.master;
+    endinterface
+`endif
+endmodule
+
+typedef enum {None, Read, Write} WaitResp deriving(Bits, Eq, FShow);
+
+module mkAWSDramBlockController#(
+    Clock dramAxiClk, Reset dramAxiRst
+)(
+    AWSDramFull#(maxReadNum, maxWriteNum, simDelay)
+) provisos(
+    Add#(1, a__, maxReadNum),
+    Add#(1, b__, maxWriteNum),
+    Add#(1, c__, simDelay)
+);
+    FIFO#(DramUserReq) reqQ <- mkFIFO;
+    FIFO#(DramUserData) readRespQ <- mkFIFO;
+
+    // sync to AXI master bits pins
+`ifdef BSIM
+    SimAxi4Dram#(
+        AWSDramAxiAddrSz, AWSDramAxiDataSz, AWSDramAxiIdSz,
+        AWSDramMaxUserAddrSz, simDelay
+    ) axiIfc <- mkSimAxi4Dram;
+`else
+    Clock userClk <- exposeCurrentClock;
+    Reset userRst <- exposeCurrentReset;
+    Axi4MasterBitsSync#(
+        AWSDramAxiAddrSz, AWSDramAxiDataSz, AWSDramAxiIdSz
+    ) axiIfc <- mkAxi4MasterBitsSync(
+        userClk, userRst,
+        clocked_by dramAxiClk, reset_by dramAxiRst
+    );
+`endif
+
+    Reg#(WaitResp) waitResp <- mkReg(None);
+
+    // read req
+    rule doReadReq(waitResp == None && reqQ.first.wrBE == 0);
+        reqQ.deq;
+        DramUserReq req = reqQ.first;
+        axiIfc.slave.req_ar.put(Axi4ReadRequest {
+            address: toAWSDramAxiAddr(req.addr),
+            len: 0,
+            size: 6,
+            burst: 1,
+            prot: 0,
+            cache: 3,
+            id: 0, // use same ID to keep resp in order
+            lock: 0,
+            qos: 0
+        });
+        // wait resp
+        waitResp <= Read;
+    endrule
+
+    // write req: insert to write buffer and req DRAM
+    rule doWriteReq(waitResp == None && reqQ.first.wrBE != 0);
+        reqQ.deq;
+        DramUserReq req = reqQ.first;
+        axiIfc.slave.req_aw.put(Axi4WriteRequest {
+            address: toAWSDramAxiAddr(req.addr),
+            len: 0,
+            size: 6,
+            burst: 1,
+            prot: 0,
+            cache: 3,
+            id: 0, // use same ID to keep writes in order
+            lock: 0,
+            qos: 0
+        });
+        axiIfc.slave.resp_write.put(Axi4WriteData {
+            data: req.data,
+            byteEnable: req.wrBE,
+            last: 1, // only 1 transfer
+            id: 0 // use same ID to keep writes in order
+        });
+        // wait resp
+        waitResp <= Write;
+    endrule
+
+    // read resp
+    rule doReadDramResp(waitResp == Read);
+        let resp <- axiIfc.slave.resp_read.get;
+        readRespQ.enq(resp.data);
+        waitResp <= None;
+    endrule
+
+    // write resp from DRAM
+    rule doWriteResp(waitResp == Write);
+        let resp <- axiIfc.slave.resp_b.get;
+        waitResp <= None;
+    endrule
+
+    interface DramUser user;
+        method Action req(DramUserReq r);
+            reqQ.enq(r);
+        endmethod
+        method ActionValue#(DramUserData) rdResp;
+            readRespQ.deq;
+            return readRespQ.first;
+        endmethod
+        method ActionValue#(AWSDramErr) err if(False);
+            return ?;
         endmethod
     endinterface
 

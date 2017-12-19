@@ -24,7 +24,7 @@ interface AWSDramPins;
 endinterface
 
 // AWS user interface: 16GB DRAM, access with 64B aligned
-typedef enum {AddrOverflow} AWSDramErr deriving(Bits, Eq, FShow);
+typedef Bit#(0) AWSDramErr; // no specific error
 
 typedef DramUser#(
     maxReadNum,

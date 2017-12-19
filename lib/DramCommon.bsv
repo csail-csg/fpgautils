@@ -25,6 +25,7 @@ interface DramUser#(
     // simulation delay (fully pipelined)
     numeric type simDelay,
     // error of dram controller
+    // XXX we should not check address overflow because of wrong-path loads
     type errT
 );
     method Action req(DramUserReq r);

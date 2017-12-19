@@ -80,7 +80,7 @@ module mkDRTestWrapper#(HostInterface host, DRTestIndication indication)(DRTestW
 
     rule doDone;
         let r <- test.done;
-        indication.done(r.elapTime, r.rdLatSum, r.rdNum);
+        indication.done(r.pass, r.elapTime, r.rdLatSum, r.rdNum);
     endrule
 
     SyncFIFOIfc#(DramErr) dramErrQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);

@@ -19,6 +19,7 @@ typedef AWSDramFull#(
 
 (* synthesize *)
 module mkAWSDramWrapper#(Clock dramAxiClk, Reset dramAxiRst)(AWSDramFullWrapper);
-    let m <- mkAWSDramController(dramAxiClk, dramAxiRst, True);
+    //let m <- mkAWSDramController(dramAxiClk, dramAxiRst, True);
+    let m <- mkAWSDramBlockController(dramAxiClk, dramAxiRst);
     return m;
 endmodule

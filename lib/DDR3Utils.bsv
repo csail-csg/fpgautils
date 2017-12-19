@@ -38,11 +38,6 @@ export mkDDR3User_2beats;
 
 typedef 24 DDR3MaxUserAddrSz; // 1GB memory in terms of 64B
 
-function Bool addrOverflow(DramUserAddr a);
-    Bit#(DDR3MaxUserAddrSz) mask = maxBound;
-    return (a & ~zeroExtend(mask)) != 0;
-endfunction
-
 // simulation
 module mkDDR3User_bsim(
     DDR3_1GB_User#(maxReadNum, delay)
@@ -67,10 +62,6 @@ module mkDDR3User_bsim(
     rule doWriteReq(reqQ.first.wrBE != 0);
         reqQ.deq;
         DramUserReq req = reqQ.first;
-        if(addrOverflow(req.addr)) begin
-            doAssert(False, "DDR3 write addr overflow");
-            errQ.enq(AddrOverflow);
-        end
         Vector#(DramUserBESz, Bit#(8)) data = unpack(mem.sub(truncate(req.addr)));
         Vector#(DramUserBESz, Bit#(8)) wrData = unpack(req.data);
         for(Integer i = 0; i < valueOf(DramUserBESz); i = i+1) begin
@@ -84,10 +75,6 @@ module mkDDR3User_bsim(
     rule doReadReq(reqQ.first.wrBE == 0 && readCnt < fromInteger(maxReadsInFlight));
         reqQ.deq;
         DramUserReq req = reqQ.first;
-        if(addrOverflow(req.addr)) begin
-            doAssert(False, "DDR3 read addr overflow");
-            errQ.enq(AddrOverflow);
-        end
         delayQ[0].enq(mem.sub(truncate(req.addr)));
         inc.send; // inc read cnt
     endrule
@@ -204,7 +191,6 @@ module mkDDR3User_2beats#(
     Bool read_data_ready  = appIfc.app_rd_data_valid;
 
     // check error
-    Reg#(Bool) reqAddrOverflow <- mkReg(False);
     Reg#(Bool) dropResp <- mkReg(False);
     Reg#(Bool) readCntOverflow <- mkReg(False);
     Reg#(Bool) readCntUnderflow <- mkReg(False);
@@ -242,10 +228,6 @@ module mkDDR3User_2beats#(
    	    wAppWdfData  <= truncate(fRequest.first.data);
    	    wAppWdfMask  <= ~truncate(fRequest.first.wrBE); // app mask = 1 means NOT write
    	    pwAppWdfWren.send;
-        // check addr overflow
-        if(addrOverflow(fRequest.first.addr)) begin
-            reqAddrOverflow <= True;
-        end
     endrule
        
     // user write req: second cycle to send MSB of write data & deq user req
@@ -274,10 +256,6 @@ module mkDDR3User_2beats#(
  	    wAppAddr <= getAppAddr(fRequest.first.addr);
  	    pwAppEn.send;
         incPendRead.send; // incr pending read cnt
-        // check addr overflow
-        if(addrOverflow(fRequest.first.addr)) begin
-            reqAddrOverflow <= True;
-        end
     endrule
 
     // get read resp from app ifc
@@ -331,11 +309,7 @@ module mkDDR3User_2beats#(
 
     // send error
     rule send_error(!errSent);
-        if(reqAddrOverflow) begin
-            fErr.enq(AddrOverflow);
-            errSent <= True;
-        end
-        else if(dropResp) begin
+        if(dropResp) begin
             fErr.enq(DropResp);
             errSent <= True;
         end

@@ -25,7 +25,7 @@ endinterface
 
 interface DRTestIndication;
     method Action inited(TestAddrIdx mask);
-    method Action done(Bit#(64) elapTime, Bit#(64) rdLatSum, Bit#(64) rdNum);
+    method Action done(Bool pass, Bit#(64) elapTime, Bit#(64) rdLatSum, Bit#(64) rdNum);
     method Action testErr(Bit#(64) rdNum);
     method Action dramErr(Bit#(4) e);
 endinterface

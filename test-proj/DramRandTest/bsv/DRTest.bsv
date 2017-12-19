@@ -11,6 +11,7 @@ import Random::*;
 import SyncFifo::*;
 
 typedef struct {
+    Bool pass;
     Bit#(64) elapTime;
     Bit#(64) rdLatSum;
     Bit#(64) rdNum;
@@ -55,6 +56,7 @@ module mkDRTest#(Clock portalClk, Reset portalRst)(DRTest);
     Reg#(Bit#(64)) sendCnt <- mkReg(0);
     Reg#(Bit#(64)) sendRdCnt <- mkReg(0);
     Reg#(Bit#(64)) recvRdCnt <- mkReg(0);
+    Reg#(Bool) hasError <- mkReg(False);
 
     // test randomizer
     let randData <- mkRandDramUserData;
@@ -150,6 +152,7 @@ module mkDRTest#(Clock portalClk, Reset portalRst)(DRTest);
         end
         else begin
             errQ.enq(recvRdCnt);
+            hasError <= True;
         end
         // update stats
         recvRdCnt <= recvRdCnt + 1;
@@ -160,6 +163,7 @@ module mkDRTest#(Clock portalClk, Reset portalRst)(DRTest);
     (* fire_when_enabled *)
     rule doDone(state == WaitDone && recvRdCnt == sendRdCnt);
         doneQ.enq(DoneResp {
+            pass: !hasError,
             elapTime: clk - beginTime,
             rdLatSum: rdLatSum,
             rdNum: recvRdCnt

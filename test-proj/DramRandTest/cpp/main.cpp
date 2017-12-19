@@ -39,10 +39,14 @@ public:
         }
     }
 
-    virtual void done(uint64_t elapTime, uint64_t rdLatSum, uint64_t rdNum) {
+    virtual void done(int pass, uint64_t elapTime, uint64_t rdLatSum, uint64_t rdNum) {
         double tp =  double(total_test_num) / double(elapTime);
         double lat = double(rdLatSum) / double(rdNum);
-        fprintf(stderr, "INFO: done: elapTime %llu, rdLatSum %llu, rdNum %llu, total test num %llu, throughput %f data/cycle, latency %f cycles\n",
+        fprintf(stderr, "INFO: done: %s, "
+                "elapTime %llu, rdLatSum %llu, rdNum %llu, "
+                "total test num %llu, throughput %f data/cycle, "
+                "latency %f cycles\n",
+                pass ? "PASS" : "FAIL",
                 (long long unsigned)elapTime, (long long unsigned)rdLatSum,
                 (long long unsigned)rdNum, total_test_num, tp, lat);
         sem_post(&sem);
