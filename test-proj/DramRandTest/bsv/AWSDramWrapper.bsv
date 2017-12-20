@@ -1,7 +1,7 @@
 import AWSDramCommon::*;
 import AWSDramController::*;
 
-typedef 128 AWSDramMaxReadNum;
+typedef 16 AWSDramMaxReadNum;
 typedef 16 AWSDramMaxWriteNum;
 typedef 10 AWSDramSimDelay;
 
@@ -19,7 +19,7 @@ typedef AWSDramFull#(
 
 (* synthesize *)
 module mkAWSDramWrapper#(Clock dramAxiClk, Reset dramAxiRst)(AWSDramFullWrapper);
-    //let m <- mkAWSDramController(dramAxiClk, dramAxiRst, True);
-    let m <- mkAWSDramBlockController(dramAxiClk, dramAxiRst);
+    let m <- mkAWSDramController(dramAxiClk, dramAxiRst);
+    //let m <- mkAWSDramBlockController(dramAxiClk, dramAxiRst);
     return m;
 endmodule

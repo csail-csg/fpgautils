@@ -8,6 +8,7 @@ LOG_STALL_RATIO ?= 7
 DRAM_TYPE ?=
 
 PROJ_DIR = $(CURDIR)
+EHR_DIR = $(PROJ_DIR)/../../../procs/lib
 FPGA_LIB_DIR = $(PROJ_DIR)/../../lib
 XILINX_IP_DIR = $(PROJ_DIR)/../../xilinx
 CORE_SCRIPT_DIR = $(PROJ_DIR)/../../core-scripts
@@ -28,7 +29,9 @@ CPPFILES = $(PROJ_DIR)/cpp/main.cpp
 
 CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK --nocache -v \
 				  -D LOG_MAX_ADDR_NUM=$(LOG_MAX_ADDR_NUM) \
-				  --bsvpath $(PROJ_DIR)/bsv --bsvpath $(FPGA_LIB_DIR) \
+				  --bsvpath $(PROJ_DIR)/bsv \
+				  --bsvpath $(EHR_DIR) \
+				  --bsvpath $(FPGA_LIB_DIR) \
 				  --verilog $(XILINX_IP_DIR)/reset_regs \
 				  --cflags " -std=c++0x " \
 				  --cflags " -D LOG_MAX_ADDR_NUM=$(LOG_MAX_ADDR_NUM) " \
