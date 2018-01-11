@@ -26,6 +26,7 @@ import GetPut::*;
 import ClientServer::*;
 import WaitAutoReset::*;
 import FloatingPoint::*;
+import FIFO::*;
 
 export mkXilinxFpFmaIP;
 export mkXilinxFpDivIP;
@@ -33,11 +34,19 @@ export mkXilinxFpSqrtIP;
 export mkXilinxFpFmaSim;
 export mkXilinxFpDivSim;
 export mkXilinxFpSqrtSim;
+export mkXilinxFpFma;
+export mkXilinxFpDiv;
+export mkXilinxFpSqrt;
 
 typedef FloatingPoint::RoundMode FpuRoundMode;
 typedef FloatingPoint::Exception FpuException;
 
-// import IP core
+export FpuRoundMode(..);
+export FpuException(..);
+
+// import Xilinx IP core
+
+// xilinx raw FMA IP is a * b + c, later we need to adapt to a + b * c
 interface FpFmaImport;
     method Action enqA(Bit#(64) a);
     method Action enqB(Bit#(64) b);
@@ -59,7 +68,7 @@ module mkFpFmaImport(FpFmaImport);
 
     method deq() enable(m_axis_result_tready) ready(m_axis_result_tvalid);
     method m_axis_result_tdata resp() ready(m_axis_result_tvalid);
-    method m_axis_result_tuser excep() ready(m_axis_resul_tvalid);
+    method m_axis_result_tuser excep() ready(m_axis_result_tvalid);
 
     schedule (enqA, enqB, enqC) CF (deq, resp, excep);
 
@@ -92,7 +101,7 @@ module mkFpDivImport(FpDivImport);
 
     method deq() enable(m_axis_result_tready) ready(m_axis_result_tvalid);
     method m_axis_result_tdata resp() ready(m_axis_result_tvalid);
-    method m_axis_result_tuser excep() ready(m_axis_resul_tvalid);
+    method m_axis_result_tuser excep() ready(m_axis_result_tvalid);
 
     schedule (enqA, enqB) CF (deq, resp, excep);
 
@@ -140,13 +149,17 @@ module mkXilinxFpFmaIP(Server#(
     WaitAutoReset#(8) init <- mkWaitAutoReset;
     FpFmaImport fpFma <- mkFpFmaImport;
 
+    // xilinx raw ip is a * b + c
+    // what we need to provide is in1 + in2 * in3
+    // so in1 -> c, in2 -> a, in3 -> b
+
     interface Put request;
         method Action put(Tuple4#(Maybe#(Double), Double, Double, FpuRoundMode) req) if(init.isReady);
-            let {in_a, b, c, rm} = req;
-            Double a = fromMaybe(zero(False), in_a);
-            fpFma.enqA(pack(a));
-            fpFma.enqB(pack(b));
-            fpFma.enqC(pack(c));
+            let {maybe_in1, in2, in3, rm} = req;
+            Double in1 = fromMaybe(zero(False), maybe_in1);
+            fpFma.enqA(pack(in2));
+            fpFma.enqB(pack(in3));
+            fpFma.enqC(pack(in1));
             if(rm != Rnd_Nearest_Even) begin
                 $fdisplay(stderr, "[Xlinx FMA] WARNING: unsupported rounding mode ", fshow(rm));
             end
@@ -195,7 +208,7 @@ module mkXilinxFpDivIP(Server#(
             excep.underflow = exBits[0] == 1;
             excep.overflow = exBits[1] == 1;
             excep.invalid_op = exBits[2] == 1;
-            excep.divid_0 = exBits[3] == 1;
+            excep.divide_0 = exBits[3] == 1;
             return tuple2(val, excep);
         endmethod
     endinterface
@@ -223,7 +236,7 @@ module mkXilinxFpSqrtIP(Server#(
         method ActionValue#(Tuple2#(Double, FpuException)) get if(init.isReady);
             fpSqrt.deq;
             Double val = unpack(fpSqrt.resp);
-            Bit#(1) exBits = fpDiv.excep;
+            Bit#(1) exBits = fpSqrt.excep;
             FpuException excep = defaultValue;
             excep.invalid_op = exBits[0] == 1;
             return tuple2(val, excep);
@@ -279,11 +292,15 @@ module mkXilinxFpFmaSim(Server#(
     FpFmaSim fpFma <- mkFpFmaSim;
     FIFO#(Tuple2#(Double, FpuException)) respQ <- mkFIFO;
 
+    // xilinx raw ip is a * b + c
+    // what we need to provide is in1 + in2 * in3
+    // so in1 -> c, in2 -> a, in3 -> b
+
     interface Put request;
         method Action put(Tuple4#(Maybe#(Double), Double, Double, FpuRoundMode) req);
-            let {in_a, b, c, rm} = req;
-            Double a = fromMaybe(zero(False), in_a);
-            Double val = unpack(fpFma.fma(pack(a), pack(b), pack(c)));
+            let {maybe_in1, in2, in3, rm} = req;
+            Double in1 = fromMaybe(zero(False), maybe_in1);
+            Double val = unpack(fpFma.fma(pack(in2), pack(in3), pack(in1)));
             respQ.enq(tuple2(val, defaultValue));
         endmethod
     endinterface
@@ -315,16 +332,56 @@ module mkXilinxFpSqrtSim(Server#(
     Tuple2#(Double, FpuRoundMode),
     Tuple2#(Double, FpuException)
 ));
-    FpSqrtSim fpSqrt <- mkFpSqrt;
+    FpSqrtSim fpSqrt <- mkFpSqrtSim;
     FIFO#(Tuple2#(Double, FpuException)) respQ <- mkFIFO;
 
     interface Put request;
         method Action put(Tuple2#(Double, FpuRoundMode) req);
             let {a, rm} = req;
-            Double val = unpack(fpSqrt.sqrt(a));
+            Double val = unpack(fpSqrt.sqrt(pack(a)));
             respQ.enq(tuple2(val, defaultValue));
         endmethod
     endinterface
     
     interface response = toGet(respQ);
+endmodule
+
+// wrap simulation and xilinx ip together
+(* synthesize *)
+module mkXilinxFpFma(Server#(
+    Tuple4#(Maybe#(Double), Double, Double, FpuRoundMode),
+    Tuple2#(Double, FpuException)
+));
+`ifdef BSIM
+    let m <- mkXilinxFpFmaSim;
+`else
+    let m <- mkXilinxFpFmaIP;
+`endif
+    return m;
+endmodule
+
+(* synthesize *)
+module mkXilinxFpDiv(Server#(
+    Tuple3#(Double, Double, FpuRoundMode),
+    Tuple2#(Double, FpuException)
+));
+`ifdef BSIM
+    let m <- mkXilinxFpDivSim;
+`else
+    let m <- mkXilinxFpDivIP;
+`endif
+    return m;
+endmodule
+
+(* synthesize *)
+module mkXilinxFpSqrt(Server#(
+    Tuple2#(Double, FpuRoundMode),
+    Tuple2#(Double, FpuException)
+));
+`ifdef BSIM
+    let m <- mkXilinxFpSqrtSim;
+`else
+    let m <- mkXilinxFpSqrtIP;
+`endif
+    return m;
 endmodule

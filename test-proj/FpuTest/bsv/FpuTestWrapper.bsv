@@ -21,31 +21,37 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import ResetGuard::*;
+import FpuTestRequest::*;
+import FpuTestIndication::*;
 
-// some xilinx IP automatically reset
-// we wait several cycles to make sure the reset completes
-// we also block signals on the IP before reset of current clock domain completes
-// because such signals may be garbage
+import HostInterface::*;
 
-interface WaitAutoReset#(numeric type logCycles);
-    method Bool isReady;
+import Clocks::*;
+import GetPut::*;
+import Connectable::*;
+
+import FpuTestIF::*;
+import FpuTest::*;
+
+interface FpuTestWrapper;
+    interface FpuTestRequest request;
 endinterface
 
-module mkWaitAutoReset(WaitAutoReset#(logCycles));
-    Reg#(Bit#(logCycles)) cnt <- mkReg(0);
-    Reg#(Bool) init <- mkReg(False);
-    
-    ResetGuard rg <- mkResetGuard;
+module mkFpuTestWrapper#(FpuTestIndication indication)(FpuTestWrapper);
+    FpuTest xilinxTest <- mkXilinxFpuTest;
+    FpuTest bluespecTest <- mkBluespecFpuTest;
 
-    rule doInit(!init);
-        cnt <= cnt + 1;
-        if(cnt == maxBound) begin
-            init <= True;
-        end
+    // connect indication
+    rule doResp;
+        let xilinxRes <- xilinxTest.resp;
+        let bluespecRes <- bluespecTest.resp;
+        indication.resp(xilinxRes, bluespecRes);
     endrule
 
-    method Bool isReady;
-        return init && rg.isReady;
-    endmethod
+    interface FpuTestRequest request;
+        method Action req(TestReq r);
+            xilinxTest.req(r);
+            bluespecTest.req(r);
+        endmethod
+    endinterface
 endmodule
