@@ -23,6 +23,8 @@
 
 CONNECTALDIR = $(RISCY_HOME)/connectal
 
+USER_CLK_PERIOD = 20
+
 PROJ_DIR = $(CURDIR)
 #EHR_DIR = $(PROJ_DIR)/../../../procs/lib
 FPGA_LIB_DIR = $(PROJ_DIR)/../../lib
@@ -46,6 +48,7 @@ CONNECTALFLAGS += --nocache -v \
 				  --verilog $(XILINX_IP_DIR)/fpu \
 				  --cflags " -std=c++0x " \
 				  --bscflags " -check-assert " \
+				  --bscflags " -D USER_CLK_PERIOD=$(USER_CLK_PERIOD) " \
 				  --bscflags " -D USE_XILINX_SYNC_FIFO "
 
 ifeq ($(BOARD),$(filter $(BOARD),vc707 awsf1))
@@ -76,22 +79,31 @@ CONNECTALFLAGS += -C $(XILINX_IP_DIR)/vc707/constraints/clocks.xdc
 endif
 
 # FPU
-FP_FMA_XCI = $(CONNECTALDIR)/out/$(BOARD)/fp_fma.xci
-FP_DIV_XCI = $(CONNECTALDIR)/out/$(BOARD)/fp_div.xci
-FP_SQRT_XCI = $(CONNECTALDIR)/out/$(BOARD)/fp_sqrt.xci
+FP_FMA_XCI = $(CONNECTALDIR)/out/$(BOARD)/fp_fma/fp_fma.xci
+FP_DIV_XCI = $(CONNECTALDIR)/out/$(BOARD)/fp_div/fp_div.xci
+FP_SQRT_XCI = $(CONNECTALDIR)/out/$(BOARD)/fp_sqrt/fp_sqrt.xci
+# also configure the latency and rate (number of cycles per input) of IP core
+FP_FMA_LATENCY = 4
+FP_DIV_LATENCY = 12
+FP_DIV_RATE = 1
+FP_SQRT_LATENCY = 8
+FP_SQRT_RATE = 1
 
 CONNECTALFLAGS += --xci $(FP_FMA_XCI) --xci $(FP_DIV_XCI) --xci $(FP_SQRT_XCI)
 
 prebuild:: $(FP_FMA_XCI) $(FP_DIV_XCI) $(FP_SQRT_XCI)
 
 $(FP_FMA_XCI): $(CORE_SCRIPT_DIR)/synth_fp_fma.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $^)
+	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(FP_FMA_LATENCY))
 
 $(FP_DIV_XCI): $(CORE_SCRIPT_DIR)/synth_fp_div.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $^)
+	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(FP_DIV_LATENCY) $(FP_DIV_RATE))
 
 $(FP_SQRT_XCI): $(CORE_SCRIPT_DIR)/synth_fp_sqrt.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $^)
+	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(FP_SQRT_LATENCY) $(FP_SQRT_RATE))
+
+# Force to generate IP core, because we pass args to synth tcl
+.PHONY: $(FP_FMA_XCI) $(FP_DIV_XCI) $(FP_SQRT_XCI)
 
 else
 # simulation

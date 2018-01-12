@@ -71,7 +71,7 @@ module mkFpuTest#(
 
     method Action req(TestReq r) if(!testing);
         testing <= True;
-        timer <= 0;
+        timer <= 1; // we need to count this cycle
         fmaRes <= Invalid;
         divRes <= Invalid;
         sqrtRes <= Invalid;

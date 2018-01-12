@@ -87,20 +87,23 @@ public:
         double sqrt_bluespec = unpackDouble(bluespec.sqrt_c.data);
 
         // print results
-        printf("fma (a + b * c):\nhost val %f\n"
-               "  xilinx val %f excep %d lat %d\n"
+        printf("fma (a + b * c):\n"
+               "  host     val %f\n"
+               "  xilinx   val %f excep %d lat %d\n"
                "  bluespec val %f excep %d lat %d\n",
                fma_host,
                fma_xilinx, xilinx.fma.exception, xilinx.fma.latency,
                fma_bluespec, bluespec.fma.exception, bluespec.fma.latency);
-        printf("div (b / c):\nhost val %f\n"
-               "  xilinx val %f excep %d lat %d\n"
+        printf("div (b / c):\n"
+               "  host     val %f\n"
+               "  xilinx   val %f excep %d lat %d\n"
                "  bluespec val %f excep %d lat %d\n",
                div_host,
                div_xilinx, xilinx.div_bc.exception, xilinx.div_bc.latency,
                div_bluespec, bluespec.div_bc.exception, bluespec.div_bc.latency);
-        printf("sqrt (c ^ 0.5):\nhost val %f\n"
-               "  xilinx val %f excep %d lat %d\n"
+        printf("sqrt (c ^ 0.5):\n"
+               "  host     val %f\n"
+               "  xilinx   val %f excep %d lat %d\n"
                "  bluespec val %f excep %d lat %d\n",
                sqrt_host,
                sqrt_xilinx, xilinx.sqrt_c.exception, xilinx.sqrt_c.latency,
@@ -153,6 +156,17 @@ int main(int argc, char **argv) {
                (long long unsigned)curReq.c, c);
 
         // send to FPGA and wait
+        testReq.req(curReq);
+        testInd.wait();
+
+        printf("\n");
+
+        // redo the test with invalid a
+        curReq.a_valid = 0;
+        printf("Test %d alt: a %d %llx (%f), b %llx (%f), c %llx (%f)\n",
+               i, curReq.a_valid, (long long unsigned)curReq.a_data, a,
+               (long long unsigned)curReq.b, b,
+               (long long unsigned)curReq.c, c);
         testReq.req(curReq);
         testInd.wait();
 

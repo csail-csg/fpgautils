@@ -23,6 +23,14 @@
 source board.tcl
 source $connectaldir/scripts/connectal-synth-ip.tcl
 
+if {$::argc != 2} {
+    error "Usage: $::argv0 LATENCY RATE"
+} else {
+    set ip_lat [lindex $argv 0]
+    set ip_rate [lindex $argv 1]
+}
+puts "Latency $ip_lat Rate $ip_rate"
+
 connectal_synth_ip floating_point 7.1 fp_div [list \
     CONFIG.A_Precision_Type {Double} \
     CONFIG.C_A_Exponent_Width {11} \
@@ -34,9 +42,9 @@ connectal_synth_ip floating_point 7.1 fp_div [list \
     CONFIG.C_Has_INVALID_OP {true} \
     CONFIG.C_Has_OVERFLOW {true} \
     CONFIG.C_Has_UNDERFLOW {true} \
-    CONFIG.C_Latency {1} \
+    CONFIG.C_Latency $ip_lat \
     CONFIG.C_Mult_Usage {No_Usage} \
-    CONFIG.C_Rate {1} \
+    CONFIG.C_Rate $ip_rate \
     CONFIG.C_Result_Exponent_Width {11} \
     CONFIG.C_Result_Fraction_Width {53} \
     CONFIG.Maximum_Latency {false} \

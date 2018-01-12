@@ -130,7 +130,7 @@ module mkFpSqrtImport(FpSqrtImport);
 
     method deq() enable(m_axis_result_tready) ready(m_axis_result_tvalid);
     method m_axis_result_tdata resp() ready(m_axis_result_tvalid);
-    method m_axis_result_tuser excep() ready(m_axis_resul_tvalid);
+    method m_axis_result_tuser excep() ready(m_axis_result_tvalid);
 
     schedule (enqA) CF (deq, resp, excep);
 

@@ -30,6 +30,8 @@ import Clocks::*;
 import GetPut::*;
 import Connectable::*;
 
+import UserClkRst::*;
+import SyncFifo::*;
 import FpuTestIF::*;
 import FpuTest::*;
 
@@ -38,20 +40,50 @@ interface FpuTestWrapper;
 endinterface
 
 module mkFpuTestWrapper#(FpuTestIndication indication)(FpuTestWrapper);
-    FpuTest xilinxTest <- mkXilinxFpuTest;
-    FpuTest bluespecTest <- mkBluespecFpuTest;
+    Clock portalClk <- exposeCurrentClock;
+    Reset portalRst <- exposeCurrentReset;
 
-    // connect indication
-    rule doResp;
+`ifndef BSIM
+    // user clock
+    UserClkRst userClkRst <- mkUserClkRst(`USER_CLK_PERIOD);
+    Clock userClk = userClkRst.clk;
+    Reset userRst = userClkRst.rst;
+`else
+    Clock userClk = portalClk;
+    Reset userRst = portalRst;
+`endif
+
+    FpuTest xilinxTest <- mkXilinxFpuTest(clocked_by userClk, reset_by userRst);
+    FpuTest bluespecTest <- mkBluespecFpuTest(clocked_by userClk, reset_by userRst);
+
+    // sync req
+    SyncFIFOIfc#(TestReq) reqQ <- mkSyncFifo(1, portalClk, portalRst, userClk, userRst);
+
+    rule sendReq;
+        reqQ.deq;
+        let r = reqQ.first;
+        xilinxTest.req(r);
+        bluespecTest.req(r);
+    endrule
+
+    // sync resp
+    SyncFIFOIfc#(Tuple2#(AllResults, AllResults)) respQ <- mkSyncFifo(1, userClk, userRst, portalClk, portalRst);
+
+    rule syncResp;
         let xilinxRes <- xilinxTest.resp;
         let bluespecRes <- bluespecTest.resp;
-        indication.resp(xilinxRes, bluespecRes);
+        respQ.enq(tuple2(xilinxRes, bluespecRes));
+    endrule
+
+    rule doResp;
+        respQ.deq;
+        let {x, b} = respQ.first;
+        indication.resp(x, b);
     endrule
 
     interface FpuTestRequest request;
         method Action req(TestReq r);
-            xilinxTest.req(r);
-            bluespecTest.req(r);
+            reqQ.enq(r);
         endmethod
     endinterface
 endmodule
