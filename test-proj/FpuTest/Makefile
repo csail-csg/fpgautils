@@ -105,6 +105,11 @@ $(FP_SQRT_XCI): $(CORE_SCRIPT_DIR)/synth_fp_sqrt.tcl
 # Force to generate IP core, because we pass args to synth tcl
 .PHONY: $(FP_FMA_XCI) $(FP_DIV_XCI) $(FP_SQRT_XCI)
 
+# AWS needs to know xilinx FPU is used
+ifeq ($(BOARD),awsf1)
+CONNECTALFLAGS += -D AWSF1_FPU
+endif
+
 else
 # simulation
 
