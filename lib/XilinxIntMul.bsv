@@ -23,7 +23,7 @@ module mkIntMulSignedImport(IntMulImport);
     default_clock clk(CLK, (*unused*) unused_gate);
     default_reset no_reset;
 
-    method req(A, B) enable((*unused*) unused_en);
+    method req(A, B) enable((*inhigh*) EN);
     method P product;
 
     schedule (req) C (req);
@@ -35,7 +35,7 @@ module mkIntMulUnsignedImport(IntMulImport);
     default_clock clk(CLK, (*unused*) unused_gate);
     default_reset no_reset;
 
-    method req(A, B) enable((*unused*) unused_en);
+    method req(A, B) enable((*inhigh*) EN);
     method P product;
 
     schedule (req) C (req);
@@ -47,7 +47,7 @@ module mkIntMulSignedUnsignedImport(IntMulImport);
     default_clock clk(CLK, (*unused*) unused_gate);
     default_reset no_reset;
 
-    method req(A, B) enable((*unused*) unused_en);
+    method req(A, B) enable((*inhigh*) EN);
     method P product;
 
     schedule (req) C (req);
@@ -114,9 +114,9 @@ module mkXilinxIntMul(XilinxIntMul#(tagT)) provisos(
     IntMulImport mulUnsigned <- mkIntMulSim(Unsigned);
     IntMulImport mulSignedUnsigned <- mkIntMulSim(SignedUnsigned);
 `else
-    IntMulImport mulSigned <- mkIntMulSigned;
-    IntMulImport mulUnsigned <- mkIntMulUnsigned;
-    IntMulImport mulSignedUnsigned <- mkIntMulSignedUnsigned;
+    IntMulImport mulSigned <- mkIntMulSignedImport;
+    IntMulImport mulUnsigned <- mkIntMulUnsignedImport;
+    IntMulImport mulSignedUnsigned <- mkIntMulSignedUnsignedImport;
 `endif
 
     // resp FIFO (unguarded) & flow ctrl credit

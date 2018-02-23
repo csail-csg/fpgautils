@@ -8,6 +8,24 @@ import MulDivTestIF::*;
 import XilinxIntMul::*;
 import XilinxIntDiv::*;
 
+(* synthesize *)
+module mkMul(XilinxIntMul#(UserTag));
+    let m <- mkXilinxIntMul;
+    return m;
+endmodule
+
+(* synthesize *)
+module mkDivSigned(XilinxIntDiv#(UserTag));
+    let m <- mkXilinxIntDivSigned;
+    return m;
+endmodule
+
+(* synthesize *)
+module mkDivUnsigned(XilinxIntDiv#(UserTag));
+    let m <- mkXilinxIntDivUnsigned;
+    return m;
+endmodule
+
 interface MulDivTest;
     method Action setTest(MulDivReq r, Bool last);
     method ActionValue#(MulDivResp) resp;
@@ -20,6 +38,7 @@ typedef `MAX_TEST_NUM MaxTestNum;
 // pressure
 typedef Bit#(`LOG_DELAY_CYCLES) DelayCnt;
 
+(* synthesize *)
 module mkMulDivTest#(Clock portalClk, Reset portalRst)(MulDivTest);
     // sync in/out
     Clock curClk <- exposeCurrentClock;
@@ -39,9 +58,9 @@ module mkMulDivTest#(Clock portalClk, Reset portalRst)(MulDivTest);
     Reg#(DelayCnt) delay <- mkReg(0);
 
     // mul/div units
-    XilinxIntMul#(UserTag) mul <- mkXilinxIntMul;
-    XilinxIntDiv#(UserTag) divSigned <- mkXilinxIntDivSigned;
-    XilinxIntDiv#(UserTag) divUnsigned <- mkXilinxIntDivUnsigned;
+    XilinxIntMul#(UserTag) mul <- mkMul;
+    XilinxIntDiv#(UserTag) divSigned <- mkDivSigned;
+    XilinxIntDiv#(UserTag) divUnsigned <- mkDivUnsigned;
 
     rule doSetTest(!started);
         setTestQ.deq;

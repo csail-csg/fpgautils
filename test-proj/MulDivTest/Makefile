@@ -23,7 +23,7 @@
 
 CONNECTALDIR = $(RISCY_HOME)/connectal
 
-USER_CLK_PERIOD = 16
+USER_CLK_PERIOD = 20
 
 PROJ_DIR = $(CURDIR)
 FPGA_LIB_DIR = $(PROJ_DIR)/../../lib
@@ -95,7 +95,7 @@ INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned/int_div_uns
 
 # also configure the latency of IP core
 INT_MUL_LATENCY = $(XILINX_INT_MUL_LATENCY)
-INT_DIV_LATENCY = 8
+INT_DIV_LATENCY = 36
 
 CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
 				  --xci $(INT_MUL_UNSIGNED_XCI) \
