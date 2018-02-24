@@ -56,7 +56,7 @@ CONNECTALFLAGS += -D USER_TAG_SIZE=4 \
 				  -D LOG_DELAY_CYCLES=7
 
 # xilinx multiplier latency
-XILINX_INT_MUL_LATENCY = 2
+XILINX_INT_MUL_LATENCY = 3
 CONNECTALFLAGS += --bscflags " -D XILINX_INT_MUL_LATENCY=$(XILINX_INT_MUL_LATENCY) "
 
 ifeq ($(BOARD),$(filter $(BOARD),vc707 awsf1))
@@ -90,7 +90,6 @@ endif
 INT_MUL_SIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed/int_mul_signed.xci
 INT_MUL_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_unsigned/int_mul_unsigned.xci
 INT_MUL_SIGNED_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_unsigned/int_mul_signed_unsigned.xci
-INT_DIV_SIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_signed/int_div_signed.xci
 INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned/int_div_unsigned.xci
 
 # also configure the latency of IP core
@@ -100,19 +99,18 @@ INT_DIV_LATENCY = 36
 CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
 				  --xci $(INT_MUL_UNSIGNED_XCI) \
 				  --xci $(INT_MUL_SIGNED_UNSIGNED_XCI) \
-				  --xci $(INT_DIV_SIGNED_XCI) \
 				  --xci $(INT_DIV_UNSIGNED_XCI)
 
-prebuild:: $(INT_MUL_SIGNED_XCI) $(INT_DIV_SIGNED_XCI)
+prebuild:: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
 
 $(INT_MUL_SIGNED_XCI): $(CORE_SCRIPT_DIR)/synth_int_mul.tcl
 	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(INT_MUL_LATENCY))
 
-$(INT_DIV_SIGNED_XCI): $(CORE_SCRIPT_DIR)/synth_int_div.tcl
+$(INT_DIV_UNSIGNED_XCI): $(CORE_SCRIPT_DIR)/synth_int_div.tcl
 	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(INT_DIV_LATENCY))
 
 # Force to generate IP core, because we pass args to synth tcl
-.PHONY: $(INT_MUL_SIGNED_XCI) $(INT_DIV_SIGNED_XCI)
+.PHONY: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
 
 # AWS needs to know xilinx mul div is used
 ifeq ($(BOARD),awsf1)

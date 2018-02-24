@@ -12,7 +12,8 @@ typedef enum {
 typedef struct {
     Bit#(64) a;
     Bit#(64) b;
-    MulSign sign;
+    MulSign mulSign;
+    Bool divSigned;
     UserTag tag;
 } MulDivReq deriving(Bits, Eq, FShow);
 
@@ -20,12 +21,9 @@ typedef struct {
     Bit#(64) productHi;
     Bit#(64) productLo;
     UserTag mulTag;
-    Bit#(64) quotientSigned;
-    Bit#(64) remainderSigned;
-    UserTag divSignedTag;
-    Bit#(64) quotientUnsigned;
-    Bit#(64) remainderUnsigned;
-    UserTag divUnsignedTag;
+    Bit#(64) quotient;
+    Bit#(64) remainder;
+    UserTag divTag;
 } MulDivResp deriving(Bits, Eq, FShow);
 
 interface MulDivTestRequest;

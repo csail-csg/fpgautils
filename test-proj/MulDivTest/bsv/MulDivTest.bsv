@@ -15,14 +15,8 @@ module mkMul(XilinxIntMul#(UserTag));
 endmodule
 
 (* synthesize *)
-module mkDivSigned(XilinxIntDiv#(UserTag));
-    let m <- mkXilinxIntDivSigned;
-    return m;
-endmodule
-
-(* synthesize *)
-module mkDivUnsigned(XilinxIntDiv#(UserTag));
-    let m <- mkXilinxIntDivUnsigned;
+module mkDiv(XilinxIntDiv#(UserTag));
+    let m <- mkXilinxIntDiv;
     return m;
 endmodule
 
@@ -58,9 +52,8 @@ module mkMulDivTest#(Clock portalClk, Reset portalRst)(MulDivTest);
     Reg#(DelayCnt) delay <- mkReg(0);
 
     // mul/div units
-    XilinxIntMul#(UserTag) mul <- mkMul;
-    XilinxIntDiv#(UserTag) divSigned <- mkDivSigned;
-    XilinxIntDiv#(UserTag) divUnsigned <- mkDivUnsigned;
+    XilinxIntMul#(UserTag) mulUnit <- mkMul;
+    XilinxIntDiv#(UserTag) divUnit <- mkDiv;
 
     rule doSetTest(!started);
         setTestQ.deq;
@@ -72,39 +65,33 @@ module mkMulDivTest#(Clock portalClk, Reset portalRst)(MulDivTest);
     rule sendTest(started);
         testQ.deq;
         let r = testQ.first;
-        XilinxIntMulSign sign = (case(r.sign)
+        XilinxIntMulSign mulSign = (case(r.mulSign)
             Signed: (Signed);
             Unsigned: (Unsigned);
             SignedUnsigned: (SignedUnsigned);
             default: (?);
         endcase);
-        mul.req(r.a, r.b, sign, r.tag);
-        divSigned.req(r.a, r.b, r.tag);
-        divUnsigned.req(r.a, r.b, r.tag);
+        mulUnit.req(r.a, r.b, mulSign, r.tag);
+        divUnit.req(r.a, r.b, r.divSigned, r.tag);
     endrule
 
     rule delayResp(
-        mul.respValid && divSigned.respValid &&
-        divUnsigned.respValid && delay < maxBound
+        mulUnit.respValid && divUnit.respValid && delay < maxBound
     );
         delay <= delay + 1;
     endrule
 
     rule recvResp(delay == maxBound);
-        mul.deqResp;
-        divSigned.deqResp;
-        divUnsigned.deqResp;
+        mulUnit.deqResp;
+        divUnit.deqResp;
 
         let resp = MulDivResp {
-            productHi: truncateLSB(mul.product),
-            productLo: truncate(mul.product),
-            mulTag: mul.respTag,
-            quotientSigned: divSigned.quotient,
-            remainderSigned: divSigned.remainder,
-            divSignedTag: divSigned.respTag,
-            quotientUnsigned: divUnsigned.quotient,
-            remainderUnsigned: divUnsigned.remainder,
-            divUnsignedTag: divUnsigned.respTag
+            productHi: truncateLSB(mulUnit.product),
+            productLo: truncate(mulUnit.product),
+            mulTag: mulUnit.respTag,
+            quotient: divUnit.quotient,
+            remainder: divUnit.remainder,
+            divTag: divUnit.respTag
         };
         respQ.enq(resp);
         delay <= 0; // reset delay
