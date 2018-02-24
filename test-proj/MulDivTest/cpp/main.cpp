@@ -8,6 +8,17 @@
 
 const uint64_t most_negative = 0x8000000000000000ULL;
 
+uint16_t rand16() {
+    return uint64_t(rand());
+}
+
+uint64_t rand64() {
+    return ( (uint64_t(rand16()) << 48) |
+             (uint64_t(rand16()) << 32) |
+             (uint64_t(rand16()) << 16) |
+              uint64_t(rand16()) );
+}
+
 MulDivResp refResp(const MulDivReq &req) {
     MulDivResp resp;
     // mul
@@ -55,14 +66,14 @@ bool sameResp(const MulDivResp &x, const MulDivResp &y) {
 }
 
 void printReq(const MulDivReq &r, FILE *fp = stderr) {
-    fprintf(fp, "a %08llx, b %08llx, sign %d, tag %3d\n",
+    fprintf(fp, "a %016llx, b %016llx, mul sign %d, div sign %d tag %3d\n",
             (long long unsigned)(r.a), (long long unsigned)(r.b),
-            int(r.mulSign), int(r.tag));
+            int(r.mulSign), int(r.divSigned), int(r.tag));
 }
 
 void printResp(const MulDivResp &r, FILE *fp = stderr) {
-    fprintf(fp, "product %08llx %08llx, tag %3d, "
-            "quotient %08llx, remainder %08llx, tag %3d\n",
+    fprintf(fp, "product %016llx %016llx, tag %3d, "
+            "quotient %016llx, remainder %016llx, tag %3d\n",
             (long long unsigned)(r.productHi),
             (long long unsigned)(r.productLo),
             int(r.mulTag),
@@ -152,11 +163,35 @@ int main(int argc, char **argv) {
     req.mulSign = Unsigned;
     req.divSigned = true;
     all_req[4] = req;
+    // basic siged div
+    req.a = 7;
+    req.b = 3;
+    req.mulSign = SignedUnsigned;
+    req.divSigned = true;
+    all_req[5] = req;
+    // basic siged div
+    req.a = -7;
+    req.b = 3;
+    req.mulSign = SignedUnsigned;
+    req.divSigned = true;
+    all_req[6] = req;
+    // basic siged div
+    req.a = 7;
+    req.b = -3;
+    req.mulSign = SignedUnsigned;
+    req.divSigned = true;
+    all_req[7] = req;
+    // basic siged div
+    req.a = -7;
+    req.b = -3;
+    req.mulSign = SignedUnsigned;
+    req.divSigned = true;
+    all_req[8] = req;
 
     // remaining random reqs
-    for(int i = 5; i < test_num; i++) {
-        req.a = uint64_t(rand());
-        req.b = uint64_t(rand());
+    for(int i = 9; i < test_num; i++) {
+        req.a = rand64();
+        req.b = rand64();
         req.mulSign = MulSign(rand() % 3);
         req.divSigned = bool(rand() % 2);
         all_req[i] = req;
