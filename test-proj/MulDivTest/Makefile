@@ -94,7 +94,7 @@ INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned/int_div_uns
 
 # also configure the latency of IP core
 INT_MUL_LATENCY = $(XILINX_INT_MUL_LATENCY)
-INT_DIV_LATENCY = 36
+INT_DIV_LATENCY = 12
 
 CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
 				  --xci $(INT_MUL_UNSIGNED_XCI) \
@@ -112,10 +112,11 @@ $(INT_DIV_UNSIGNED_XCI): $(CORE_SCRIPT_DIR)/synth_int_div.tcl
 # Force to generate IP core, because we pass args to synth tcl
 .PHONY: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
 
-# AWS needs to know xilinx mul div is used
+# AWS needs to know int mul div are used
 ifeq ($(BOARD),awsf1)
-CONNECTALFLAGS += -D AWSF1_INT_MUL -D AWSF1_INT_DIV
+CONNECTALFLAGS += -D AWSF1_INT_MULDIV
 endif
+
 
 else
 # simulation
