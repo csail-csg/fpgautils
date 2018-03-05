@@ -24,7 +24,7 @@ source board.tcl
 source $connectaldir/scripts/connectal-synth-ip.tcl
 
 set sync_fifo_version {13.0}
-if {[version -short] >= "2017.1"} {
+if {[version -short] >= "2016.4"} {
     set sync_fifo_version {13.1}
 }
 if {[version -short] >= "2017.4"} {
